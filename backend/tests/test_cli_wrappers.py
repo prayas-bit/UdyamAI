@@ -41,29 +41,6 @@ def test_wrapper_imports_without_crashing(script: Path):
     )
 
 
-@pytest.mark.parametrize(
-    "script",
-    WRAPPER_SCRIPTS,
-    ids=[s.stem for s in WRAPPER_SCRIPTS],
-)
-def test_wrapper_defensive_error_message(script: Path, monkeypatch):
-    """If the ingestion module is missing, the script prints a friendly error and exits 1."""
-    # Break the import by making the backend path invalid
-    result = subprocess.run(
-        [sys.executable, str(script), "--help"],
-        capture_output=True,
-        text=True,
-        cwd=str(_REPO_ROOT),
-        timeout=10,
-        env={**__import__("os").environ, "PYTHONPATH": "/nonexistent_path"},
-    )
-    # The sys.path.insert in the script itself adds the correct path,
-    # so it will still find the module. Instead, test the guard by
-    # temporarily hiding the module — use importlib trick.
-    # This is covered by the structure test below.
-    pass  # structural verification in test_defensive_import_structure
-
-
 def test_defensive_import_structure():
     """All wrapper scripts contain a try/except ImportError guard."""
     for script in WRAPPER_SCRIPTS:
