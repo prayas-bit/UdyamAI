@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from app.ai import context_builder, guardrails, prompts, recommendation
 
 
@@ -321,3 +325,56 @@ def test_generate_advice_backward_compatibility_without_db(monkeypatch):
     assert advice.rag_status == "no_relevant_evidence"
     assert advice.summary == "Standard advice."
     assert advice.evidence == []
+
+
+def test_rag_status_enum_values():
+    from app.schemas.rag import RAGStatus
+
+    assert RAGStatus.SUCCESS == "success"
+    assert RAGStatus.NO_RELEVANT_EVIDENCE == "no_relevant_evidence"
+    assert RAGStatus.CONFLICTING_SOURCES == "conflicting_sources"
+    assert RAGStatus.EMBEDDING_GENERATION_FAILED == "embedding_generation_failed"
+    assert issubclass(RAGStatus, str)
+
+
+def test_generate_advice_malformed_json_fallback(monkeypatch):
+    from app.ai import advisor
+
+    def mock_llm_generate(prompt):
+        return "This is malformed non-JSON text from the model."
+
+    monkeypatch.setattr("app.ai.llm.generate", mock_llm_generate)
+
+    advice = advisor.generate_advice({"feasibility": {"overall_score": 75}})
+    assert advice is not None
+    assert (
+        "malformed" in advice.summary
+        or "unavailable" in advice.summary.lower()
+        or "verified" in advice.recommendation.lower()
+    )
+
+
+def test_generate_advice_specific_exception_handling(monkeypatch):
+    from app.ai import advisor
+
+    def mock_llm_generate_json_error(prompt):
+        raise json.JSONDecodeError("Expecting value", "doc", 0)
+
+    monkeypatch.setattr("app.ai.llm.generate", mock_llm_generate_json_error)
+
+    advice = advisor.generate_advice({"feasibility": {"overall_score": 75}})
+    assert advice is not None
+    assert "verified backend analysis" in advice.summary.lower()
+    assert advice.model_name == "backend-grounded-v1"
+
+
+def test_generate_advice_reraises_import_error(monkeypatch):
+    from app.ai import advisor
+
+    def mock_llm_generate_import_error(prompt):
+        raise ImportError("Missing required package")
+
+    monkeypatch.setattr("app.ai.llm.generate", mock_llm_generate_import_error)
+
+    with pytest.raises(ImportError, match="Missing required package"):
+        advisor.generate_advice({"feasibility": {"overall_score": 75}})

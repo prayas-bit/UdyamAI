@@ -8,12 +8,156 @@ from app.models.business import BusinessCategory
 from app.models.finance import FinancialAnalysis
 from app.models.location import District, Taluka, Village
 from app.models.market import CompetitorAnalysis, MarketAnalysis
-from app.models.scheme import SchemeMatch
+from app.models.scheme import Scheme, SchemeMatch
 from app.schemas.feasibility import (
     AnalysisRunCreate,
     AnalysisStatusResponse,
     ConsolidatedAnalysisResponse,
 )
+from app.schemes.matcher import estimate_subsidy_for_match
+
+_AI_UNAVAILABLE_MARKERS = (
+    "ai advisory guidance is temporarily unavailable",
+    "ai-generated recommendations are currently unavailable",
+    "ai guidance is unavailable",
+)
+
+
+def _extract_indicator_list(value) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if item is not None and str(item).strip()]
+    if isinstance(value, dict):
+        indicators = value.get("indicators", [])
+        if isinstance(indicators, list):
+            return [
+                str(item).strip() for item in indicators if item is not None and str(item).strip()
+            ]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    return []
+
+
+def _is_ai_unavailable_text(text: str) -> bool:
+    lowered = text.lower()
+    return any(marker in lowered for marker in _AI_UNAVAILABLE_MARKERS)
+
+
+def _normalize_ai_advice_payload(
+    ai_rec: AIAnalysis | None, feas_rec: FeasibilityAnalysis | None
+) -> dict:
+    if not ai_rec:
+        return {}
+
+    swot = ai_rec.swot if isinstance(ai_rec.swot, dict) else {}
+    opportunities_raw = ai_rec.opportunities if isinstance(ai_rec.opportunities, dict) else {}
+    threats_raw = ai_rec.threats if isinstance(ai_rec.threats, dict) else {}
+    business_plan = ai_rec.business_plan if isinstance(ai_rec.business_plan, dict) else {}
+    pricing_strategy = ai_rec.pricing_strategy if isinstance(ai_rec.pricing_strategy, dict) else {}
+
+    strengths = _extract_indicator_list(swot.get("strengths"))
+    weaknesses = _extract_indicator_list(swot.get("weaknesses"))
+    opportunities = _extract_indicator_list(swot.get("opportunities")) or _extract_indicator_list(
+        opportunities_raw.get("advice")
+    )
+    threats = _extract_indicator_list(swot.get("threats")) or _extract_indicator_list(
+        threats_raw.get("risks")
+    )
+
+    if feas_rec:
+        strengths = strengths or _extract_indicator_list(feas_rec.strengths)
+        weaknesses = weaknesses or _extract_indicator_list(feas_rec.weaknesses)
+        opportunities = opportunities or _extract_indicator_list(feas_rec.opportunities)
+        threats = threats or _extract_indicator_list(feas_rec.threats)
+
+    recommendations = _extract_indicator_list(business_plan.get("next_steps"))
+    financial_advice = _extract_indicator_list(pricing_strategy.get("financial_advice"))
+
+    summary = ai_rec.summary or ""
+    if _is_ai_unavailable_text(summary) and feas_rec and feas_rec.recommendation:
+        summary = (
+            f"Verified feasibility analysis completed with an overall score of "
+            f"{feas_rec.overall_score:.0f}/100. Review the structured recommendations below."
+            if feas_rec.overall_score is not None
+            else "Verified feasibility analysis completed. Review the structured recommendations below."
+        )
+
+    return {
+        "summary": summary,
+        "recommendation": ai_rec.recommendation,
+        "recommendations": recommendations,
+        "reasoning": strengths,
+        "weaknesses": weaknesses,
+        "opportunities": opportunities,
+        "threats": threats,
+        "financial_advice": financial_advice,
+        "swot": {
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "opportunities": opportunities,
+            "threats": threats,
+        },
+        "confidence": ai_rec.confidence,
+        "model_name": ai_rec.model_name,
+        "rag_status": "success"
+        if ai_rec.model_name not in (None, "unavailable")
+        else "no_relevant_evidence",
+    }
+
+
+def _build_risks_payload(ai_data: dict, feas_rec: FeasibilityAnalysis | None) -> list[dict]:
+    risks_data: list[dict] = []
+    raw_ai_risks = ai_data.get("risks") if ai_data else None
+    if isinstance(raw_ai_risks, dict):
+        raw_ai_risks = raw_ai_risks.get("risks", [])
+
+    if isinstance(raw_ai_risks, list):
+        for item in raw_ai_risks:
+            if isinstance(item, str) and item.strip() and not _is_ai_unavailable_text(item):
+                risks_data.append(
+                    {
+                        "risk_factor": item,
+                        "factor": item,
+                        "category": "Operational & Market Risk",
+                        "level": "Medium",
+                        "mitigation": "Establish direct supplier contracts, enforce quality control protocols, and maintain a 15-day emergency operational buffer.",
+                    }
+                )
+            elif isinstance(item, dict):
+                factor = (
+                    item.get("risk_factor")
+                    or item.get("factor")
+                    or item.get("risk_type")
+                    or "Operational Risk"
+                )
+                if _is_ai_unavailable_text(str(factor)):
+                    continue
+                risks_data.append(
+                    {
+                        "risk_factor": factor,
+                        "factor": factor,
+                        "category": item.get("category") or "Operating Risk",
+                        "level": item.get("level") or item.get("severity") or "Medium",
+                        "mitigation": item.get("mitigation")
+                        or item.get("evidence")
+                        or "Implement risk control protocol and maintain contingency reserve.",
+                    }
+                )
+
+    if not risks_data and feas_rec:
+        threat_items = _extract_indicator_list(feas_rec.threats)
+        weakness_items = _extract_indicator_list(feas_rec.weaknesses)
+        for idx, threat in enumerate(threat_items + weakness_items):
+            risks_data.append(
+                {
+                    "risk_factor": threat,
+                    "factor": threat[:60],
+                    "category": "Market & Enterprise Risk",
+                    "level": "Medium" if idx < len(threat_items) else "Low",
+                    "mitigation": "Monitor this factor monthly, maintain contingency reserves, and align operations with matched subsidy scheme requirements.",
+                }
+            )
+
+    return risks_data
 
 
 class AnalysisService:
@@ -35,6 +179,10 @@ class AnalysisService:
 
             if not village:
                 statement = select(Village).where(Village.lgd_code == str(location_ref))
+                village = db.exec(statement).first()
+
+            if not village:
+                statement = select(Village).where(Village.name == str(location_ref))
                 village = db.exec(statement).first()
 
         if not village:
@@ -221,18 +369,41 @@ class AnalysisService:
 
         # Scheme matches
         matches = db.exec(select(SchemeMatch).where(SchemeMatch.analysis_run_id == run_id)).all()
-        schemes_data = [
-            {
-                "scheme_id": str(m.scheme_id),
-                "match_status": str(
-                    m.match_status.value if hasattr(m.match_status, "value") else m.match_status
-                ),
-                "match_score": m.match_score,
-                "estimated_loan_amount": m.estimated_loan_amount,
-                "estimated_project_cost": m.estimated_project_cost,
-            }
-            for m in matches
-        ]
+        schemes_data = []
+        for m in matches:
+            sch_obj = db.get(Scheme, m.scheme_id) if m.scheme_id else None
+            s_name = (
+                sch_obj.name if sch_obj and sch_obj.name else "Government Welfare & Subsidy Scheme"
+            )
+            s_desc = (
+                sch_obj.description
+                if sch_obj and sch_obj.description
+                else "Capital subsidy and financial support scheme for micro-enterprises."
+            )
+            s_agency = sch_obj.agency_name if sch_obj else None
+            s_url = sch_obj.official_url if sch_obj else None
+
+            proj_cost = m.estimated_project_cost or 0
+            sub_est = estimate_subsidy_for_match(db, m.scheme_id, proj_cost) if m.scheme_id else 0.0
+
+            schemes_data.append(
+                {
+                    "scheme_id": str(m.scheme_id),
+                    "scheme_name": s_name,
+                    "name": s_name,
+                    "description": s_desc,
+                    "agency_name": s_agency,
+                    "official_url": s_url,
+                    "match_status": str(
+                        m.match_status.value if hasattr(m.match_status, "value") else m.match_status
+                    ),
+                    "match_score": m.match_score,
+                    "estimated_subsidy_amount": sub_est,
+                    "estimated_loan_amount": m.estimated_loan_amount,
+                    "estimated_project_cost": m.estimated_project_cost,
+                    "matched_conditions": m.matched_conditions or {},
+                }
+            )
 
         # Feasibility analysis
         feas_rec = db.exec(
@@ -251,15 +422,21 @@ class AnalysisService:
                 "weaknesses": feas_rec.weaknesses,
                 "opportunities": feas_rec.opportunities,
                 "threats": feas_rec.threats,
+                "swot": {
+                    "strengths": _extract_indicator_list(feas_rec.strengths),
+                    "weaknesses": _extract_indicator_list(feas_rec.weaknesses),
+                    "opportunities": _extract_indicator_list(feas_rec.opportunities),
+                    "threats": _extract_indicator_list(feas_rec.threats),
+                },
             }
             if feas_rec
             else {}
         )
 
-        # AI advice
         ai_rec = db.exec(select(AIAnalysis).where(AIAnalysis.analysis_run_id == run_id)).first()
-        ai_data = (
-            {
+        ai_data = _normalize_ai_advice_payload(ai_rec, feas_rec) if ai_rec else {}
+        if ai_rec and not ai_data:
+            ai_data = {
                 "summary": ai_rec.summary,
                 "recommendation": ai_rec.recommendation,
                 "swot": ai_rec.swot,
@@ -270,25 +447,11 @@ class AnalysisService:
                 "business_plan": ai_rec.business_plan,
                 "confidence": ai_rec.confidence,
             }
-            if ai_rec
-            else {}
-        )
 
-        # Risks summary
-        risks_data = [
-            {
-                "risk_type": "market_risk",
-                "level": (
-                    mkt_data.get("demand_indicators", {}).get("level", "low")
-                    if isinstance(mkt_data.get("demand_indicators"), dict)
-                    else "low"
-                ),
-            },
-            {
-                "risk_type": "feasibility_risk",
-                "score": feas_data.get("risk_score"),
-            },
-        ]
+        risks_data = _build_risks_payload(
+            {"risks": ai_rec.risks} if ai_rec else {},
+            feas_rec,
+        )
 
         return ConsolidatedAnalysisResponse(
             analysis_id=db_run.id,

@@ -42,6 +42,7 @@ from app.models.report import Report
 from app.models.scheme import Scheme, SchemeMatch
 from app.models.user import Profile
 from app.schemas.ai import AIAdvice, AnalysisContext
+from app.schemas.common import SchemeMatchStatus
 from app.schemas.feasibility import AnalysisRunCreate
 from app.schemas.finance import FinanceCalculateResponse
 from app.services.analysis_orchestrator import AnalysisOrchestrator
@@ -232,6 +233,19 @@ def test_full_vertical_slice_orchestration_maharashtra():
         captured_analysis_context = analysis_context
         return mock_advice_resp
 
+    mock_scheme_match = SchemeMatch(
+        id=uuid4(),
+        analysis_run_id=uuid4(),
+        scheme_id=pmegp_scheme_id,
+        match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+        match_score=0.9,
+        scheme=mock_scheme,
+    )
+
+    def fake_match_schemes(*args, **kwargs):
+        mock_db_add(mock_scheme_match)
+        return [mock_scheme_match]
+
     with (
         patch(
             "app.services.analysis_orchestrator.AnalysisService.verify_location",
@@ -240,6 +254,10 @@ def test_full_vertical_slice_orchestration_maharashtra():
         patch(
             "app.services.analysis_orchestrator.AnalysisService.verify_business_category",
             return_value=dairy_category_id,
+        ),
+        patch(
+            "app.services.analysis_orchestrator.match_schemes_for_analysis",
+            side_effect=fake_match_schemes,
         ),
         patch(
             "app.services.analysis_orchestrator.FinanceService.calculate_finance",
@@ -255,7 +273,7 @@ def test_full_vertical_slice_orchestration_maharashtra():
         ),
         patch(
             "app.services.analysis_orchestrator.SchemeService.get_scheme_matches",
-            return_value=[],
+            return_value=[mock_scheme_match],
         ),
         patch(
             "app.services.analysis_orchestrator.SchemeService.get_schemes",

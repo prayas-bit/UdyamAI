@@ -173,6 +173,11 @@ def generate_embedding(text: str, max_retries: int = 5, base_delay: float = 1.0)
                 )
             return embedding
         except (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError) as e:
+            if (
+                "insufficient_quota" in str(e).lower()
+                or "credit_balance_exhausted" in str(e).lower()
+            ):
+                raise e
             attempt += 1
             if attempt > max_retries:
                 raise EmbeddingRetryExhaustedError(
@@ -257,6 +262,11 @@ def generate_embeddings(
                 all_embeddings.extend(batch_embeddings)
                 break
             except (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError) as e:
+                if (
+                    "insufficient_quota" in str(e).lower()
+                    or "credit_balance_exhausted" in str(e).lower()
+                ):
+                    raise e
                 attempt += 1
                 if attempt > max_retries:
                     raise EmbeddingRetryExhaustedError(

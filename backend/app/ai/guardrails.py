@@ -68,18 +68,22 @@ def _validate_source_entry(source: Any) -> dict[str, Any] | None:
         source_type = "data_source"
 
     reference_id = source.get("reference_id")
-    if reference_id is None or str(reference_id).strip() == "":
+    if reference_id is None:
         reference_id = "backend"
-    elif not isinstance(reference_id, (str, int, float)):
+    elif isinstance(reference_id, (str, int, float)):
+        ref_str = str(reference_id).strip()
+        reference_id = ref_str if ref_str else "backend"
+    else:
         try:
-            reference_id = str(reference_id)
+            ref_str = str(reference_id).strip()
+            reference_id = ref_str if ref_str else "backend"
         except Exception:
             reference_id = "backend"
 
     return {
         "claim": claim,
         "source_type": source_type,
-        "reference_id": str(reference_id).strip(),
+        "reference_id": reference_id,
     }
 
 
@@ -128,19 +132,36 @@ def validate(raw_output: dict, context: dict) -> dict:
     # Map RAG evidence sources to SourceReferences if context contains verified RAG evidence
     rag_evidence = context.get("rag_evidence", []) or []
     for ev in rag_evidence:
+        if not isinstance(ev, dict):
+            continue
         score = ev.get("score", 0.0)
-        # Filter evidence items that meet a baseline similarity score threshold
-        if score >= 0.50:
-            src = ev.get("source", {})
-            ref_id = src.get("document_id") or ev.get("chunk_id") or "rag_doc"
+        # Filter evidence items that meet a baseline similarity score threshold (>= 0.60)
+        if isinstance(score, (int, float)) and score >= 0.60:
+            src = ev.get("source", {}) if isinstance(ev.get("source"), dict) else {}
+            raw_doc_id = src.get("document_id")
+            raw_chunk_id = ev.get("chunk_id")
+
+            # Safe scalar validation for ref_id before string coercion
+            if raw_doc_id is not None and isinstance(raw_doc_id, (str, int, float)):
+                ref_id = str(raw_doc_id).strip()
+            elif raw_chunk_id is not None and isinstance(raw_chunk_id, (str, int, float)):
+                ref_id = str(raw_chunk_id).strip()
+            else:
+                try:
+                    ref_id = str(raw_doc_id or raw_chunk_id).strip()
+                except Exception:
+                    ref_id = "rag_doc"
+            if not ref_id:
+                ref_id = "rag_doc"
+
             doc_title = src.get("title") or "RAG Document"
             claim_text = f"Retrieved Document Evidence: {doc_title}"
-            if not any(s.get("reference_id") == str(ref_id) for s in normalized_sources):
+            if not any(s.get("reference_id") == ref_id for s in normalized_sources):
                 normalized_sources.append(
                     {
                         "claim": claim_text,
                         "source_type": "document",
-                        "reference_id": str(ref_id),
+                        "reference_id": ref_id,
                     }
                 )
 

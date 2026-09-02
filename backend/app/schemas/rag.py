@@ -1,11 +1,11 @@
 from datetime import date, datetime
-from enum import StrEnum
+from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
-class RAGStatus(StrEnum):
+class RAGStatus(str, Enum):  # noqa: UP042
     """Enumeration of standard RAG evidence retrieval status codes."""
 
     SUCCESS = "success"

@@ -40,7 +40,7 @@ if SAMPLES is None:
 
 def write_csv(content: str) -> Path:
     """Write CSV text to a temp file and return its path."""
-    f = tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False)
+    f = tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".csv", delete=False)
     f.write(content)
     f.close()
     return Path(f.name)

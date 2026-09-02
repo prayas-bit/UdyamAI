@@ -10,6 +10,7 @@ interface ReviewScreenProps {
   capital: string;
   desiredProjectCost: string;
   language: string;
+  error?: string;
   onEdit: () => void;
   onStartAnalysis: () => void;
 }
@@ -22,6 +23,7 @@ export default function ReviewScreen({
   capital,
   desiredProjectCost,
   language,
+  error,
   onEdit,
   onStartAnalysis,
 }: ReviewScreenProps) {
@@ -105,6 +107,13 @@ export default function ReviewScreen({
               {languageName}
             </p>
           </div>
+
+          {error && (
+            <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <p className="font-semibold">Unable to Start Analysis</p>
+              <p className="mt-1">{error}</p>
+            </div>
+          )}
 
           <div className="mt-8 flex flex-wrap gap-3">
             <button
