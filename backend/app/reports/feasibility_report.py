@@ -8,12 +8,11 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.models.finance import FinancialAnalysis
 from app.models.analysis import AIAnalysis, AnalysisRun, FeasibilityAnalysis
 from app.models.business import BusinessCategory
+from app.models.finance import FinancialAnalysis
 from app.models.location import Village
 from app.models.market import MarketAnalysis
-from app.models.report import Report
 from app.models.scheme import Scheme, SchemeMatch
 from app.schemes.matcher import estimate_subsidy_for_match
 
@@ -27,7 +26,9 @@ def assemble_feasibility_report_data(db: Session, analysis_run_id: UUID) -> dict
         raise ValueError(f"Analysis run {analysis_run_id} not found.")
 
     village = db.get(Village, run.location_id) if run.location_id else None
-    category = db.get(BusinessCategory, run.business_category_id) if run.business_category_id else None
+    category = (
+        db.get(BusinessCategory, run.business_category_id) if run.business_category_id else None
+    )
 
     feasibility = db.exec(
         select(FeasibilityAnalysis).where(FeasibilityAnalysis.analysis_run_id == analysis_run_id)
@@ -57,12 +58,14 @@ def assemble_feasibility_report_data(db: Session, analysis_run_id: UUID) -> dict
         proj_cost = match.estimated_project_cost or 0.0
         subsidy = estimate_subsidy_for_match(db, sch.id, proj_cost)
         subsidy_pct = round((subsidy / proj_cost) * 100, 1) if proj_cost > 0 and subsidy > 0 else 0
-        schemes_data.append({
-            "name": sch.name,
-            "subsidy_percentage": subsidy_pct,
-            "match_status": match.match_status,
-            "estimated_loan": match.estimated_loan_amount,
-        })
+        schemes_data.append(
+            {
+                "name": sch.name,
+                "subsidy_percentage": subsidy_pct,
+                "match_status": match.match_status,
+                "estimated_loan": match.estimated_loan_amount,
+            }
+        )
 
     strengths = []
     weaknesses = []
@@ -79,8 +82,14 @@ def assemble_feasibility_report_data(db: Session, analysis_run_id: UUID) -> dict
         if isinstance(feasibility.threats, dict):
             threats = feasibility.threats.get("indicators", [])
 
-    summary = ai_analysis.summary if ai_analysis else (feasibility.recommendation if feasibility else "")
-    recommendation = ai_analysis.recommendation if ai_analysis else (feasibility.recommendation if feasibility else "")
+    summary = (
+        ai_analysis.summary if ai_analysis else (feasibility.recommendation if feasibility else "")
+    )
+    recommendation = (
+        ai_analysis.recommendation
+        if ai_analysis
+        else (feasibility.recommendation if feasibility else "")
+    )
     next_steps = []
     if ai_analysis and isinstance(ai_analysis.business_plan, dict):
         next_steps = ai_analysis.business_plan.get("next_steps", [])
@@ -90,21 +99,45 @@ def assemble_feasibility_report_data(db: Session, analysis_run_id: UUID) -> dict
 
     avail_cap = run.available_capital or 0.0
     desired_cost = getattr(run, "desired_project_cost", 0.0) or 0.0
-    loan_amt = fin_analysis.calculated_loan if fin_analysis and fin_analysis.calculated_loan is not None else max(0.0, desired_cost - avail_cap)
-    monthly_emi = fin_analysis.monthly_emi if fin_analysis and fin_analysis.monthly_emi is not None else 0.0
-    monthly_surplus = mkt_analysis.market_reach_estimate if mkt_analysis and mkt_analysis.market_reach_estimate else 0.0
+    loan_amt = (
+        fin_analysis.calculated_loan
+        if fin_analysis and fin_analysis.calculated_loan is not None
+        else max(0.0, desired_cost - avail_cap)
+    )
+    monthly_emi = (
+        fin_analysis.monthly_emi if fin_analysis and fin_analysis.monthly_emi is not None else 0.0
+    )
+    monthly_surplus = (
+        mkt_analysis.market_reach_estimate
+        if mkt_analysis and mkt_analysis.market_reach_estimate
+        else 0.0
+    )
 
     return {
-        "title": f"{category_name} Feasibility Report" if category_name else "UdyamAI Feasibility Report",
+        "title": f"{category_name} Feasibility Report"
+        if category_name
+        else "UdyamAI Feasibility Report",
         "location_name": location_name,
         "category_name": category_name,
         "generated_at": run.created_at.strftime("%Y-%m-%d") if run.created_at else "",
-        "overall_score": feasibility.overall_score if feasibility and feasibility.overall_score is not None else 0.0,
-        "market_score": feasibility.market_score if feasibility and feasibility.market_score is not None else 0.0,
-        "financial_score": feasibility.financial_score if feasibility and feasibility.financial_score is not None else 0.0,
-        "competition_score": feasibility.competition_score if feasibility and feasibility.competition_score is not None else 0.0,
-        "infrastructure_score": feasibility.infrastructure_score if feasibility and feasibility.infrastructure_score is not None else 0.0,
-        "risk_score": feasibility.risk_score if feasibility and feasibility.risk_score is not None else 0.0,
+        "overall_score": feasibility.overall_score
+        if feasibility and feasibility.overall_score is not None
+        else 0.0,
+        "market_score": feasibility.market_score
+        if feasibility and feasibility.market_score is not None
+        else 0.0,
+        "financial_score": feasibility.financial_score
+        if feasibility and feasibility.financial_score is not None
+        else 0.0,
+        "competition_score": feasibility.competition_score
+        if feasibility and feasibility.competition_score is not None
+        else 0.0,
+        "infrastructure_score": feasibility.infrastructure_score
+        if feasibility and feasibility.infrastructure_score is not None
+        else 0.0,
+        "risk_score": feasibility.risk_score
+        if feasibility and feasibility.risk_score is not None
+        else 0.0,
         "summary": summary,
         "recommendation": recommendation,
         "swot": {
@@ -124,4 +157,3 @@ def assemble_feasibility_report_data(db: Session, analysis_run_id: UUID) -> dict
         "schemes": schemes_data,
         "next_steps": next_steps,
     }
-

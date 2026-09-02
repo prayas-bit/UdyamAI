@@ -18,8 +18,7 @@ Coordinates the end-to-end multi-step analysis pipeline:
 import logging
 from datetime import UTC, datetime
 from typing import Any
-
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from fastapi import HTTPException
 from sqlmodel import Session, select
@@ -43,17 +42,16 @@ from app.schemas.ai import (
     SchemeMatchContext,
 )
 from app.schemas.business import BusinessCategoryResponse
-from app.schemas.common import SchemeMatchStatus
 from app.schemas.feasibility import AnalysisRunCreate
 from app.schemas.finance import FinanceCalculateRequest
 from app.schemas.location import DistrictResponse, TalukaResponse, VillageResponse
 from app.schemas.scheme import SchemeResponse
+from app.schemes.matcher import match_schemes_for_analysis
 from app.services.analysis_service import AnalysisService
 from app.services.feasibility_service import FeasibilityService
 from app.services.finance_service import FinanceService
 from app.services.market_service import MarketService
 from app.services.scheme_service import SchemeService
-from app.schemes.matcher import match_schemes_for_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -205,10 +203,18 @@ class AnalysisOrchestrator:
                 desired_project_cost=desired_cost,
                 available_capital=avail_cap,
                 scheme_id=best_match.scheme_id if best_match else None,
-                loan_percent=best_rule.loan_percent if best_rule and best_rule.loan_percent is not None else None,
-                interest_rate=best_rule.interest_rate if best_rule and best_rule.interest_rate is not None else settings.DEFAULT_INTEREST_RATE,
-                tenure_months=best_rule.tenure_months if best_rule and best_rule.tenure_months is not None else settings.DEFAULT_TENURE_MONTHS,
-                moratorium_months=best_rule.moratorium_months if best_rule and best_rule.moratorium_months is not None else 0,
+                loan_percent=best_rule.loan_percent
+                if best_rule and best_rule.loan_percent is not None
+                else None,
+                interest_rate=best_rule.interest_rate
+                if best_rule and best_rule.interest_rate is not None
+                else settings.DEFAULT_INTEREST_RATE,
+                tenure_months=best_rule.tenure_months
+                if best_rule and best_rule.tenure_months is not None
+                else settings.DEFAULT_TENURE_MONTHS,
+                moratorium_months=best_rule.moratorium_months
+                if best_rule and best_rule.moratorium_months is not None
+                else 0,
                 beneficiary_contribution_percent=(
                     best_rule.beneficiary_contribution_percent
                     if best_rule and best_rule.beneficiary_contribution_percent is not None
@@ -228,12 +234,18 @@ class AnalysisOrchestrator:
                 radii_km=[10.0],
             )
             radius_results = None
-            if hasattr(market_location_res, "radius_results") and isinstance(getattr(market_location_res, "radius_results"), list):
+            if hasattr(market_location_res, "radius_results") and isinstance(
+                market_location_res.radius_results, list
+            ):
                 radius_results = market_location_res.radius_results
-            elif hasattr(market_location_res, "radius_analyses") and isinstance(getattr(market_location_res, "radius_analyses"), list):
+            elif hasattr(market_location_res, "radius_analyses") and isinstance(
+                market_location_res.radius_analyses, list
+            ):
                 radius_results = market_location_res.radius_analyses
             else:
-                radius_results = getattr(market_location_res, "radius_analyses", None) or getattr(market_location_res, "radius_results", None)
+                radius_results = getattr(market_location_res, "radius_analyses", None) or getattr(
+                    market_location_res, "radius_results", None
+                )
 
             if not radius_results:
                 raise HTTPException(
@@ -294,8 +306,12 @@ class AnalysisOrchestrator:
                 target_est = getattr(market_res, "estimated_target_customers", None)
 
             mkt_indicators = getattr(market_res, "market_indicators", {}) or {}
-            demand_info = mkt_indicators.get("demand", {}) if isinstance(mkt_indicators, dict) else {}
-            pricing_info = mkt_indicators.get("pricing", {}) if isinstance(mkt_indicators, dict) else {}
+            demand_info = (
+                mkt_indicators.get("demand", {}) if isinstance(mkt_indicators, dict) else {}
+            )
+            pricing_info = (
+                mkt_indicators.get("pricing", {}) if isinstance(mkt_indicators, dict) else {}
+            )
 
             mkt_context = MarketContext(
                 population_estimate=pop_est,
@@ -363,13 +379,19 @@ class AnalysisOrchestrator:
                 lang_str = "en"
 
             mkt_risks = getattr(market_res, "risks", None)
-            raw_mkt_score = getattr(mkt_risks, "overall_market_risk_score", 0.0) if mkt_risks else 0.0
-            mkt_risk_score = float(raw_mkt_score) if isinstance(raw_mkt_score, (int, float)) else 0.0
+            raw_mkt_score = (
+                getattr(mkt_risks, "overall_market_risk_score", 0.0) if mkt_risks else 0.0
+            )
+            mkt_risk_score = (
+                float(raw_mkt_score) if isinstance(raw_mkt_score, (int, float)) else 0.0
+            )
 
             raw_mkt_level = getattr(mkt_risks, "risk_level", "low") if mkt_risks else "low"
             mkt_risk_level = str(raw_mkt_level) if isinstance(raw_mkt_level, str) else "low"
 
-            raw_threat = getattr(competition_res, "threat_level", "low") if competition_res else "low"
+            raw_threat = (
+                getattr(competition_res, "threat_level", "low") if competition_res else "low"
+            )
             comp_threat_level = str(raw_threat) if isinstance(raw_threat, str) else "low"
 
             risks_context = [

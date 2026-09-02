@@ -85,8 +85,12 @@ class FinanceService:
             rule = SchemeRuleInput(
                 beneficiary_contribution_percent=b_percent,
                 loan_percent=l_percent,
-                interest_rate=request.interest_rate if request.interest_rate is not None else settings.DEFAULT_INTEREST_RATE,
-                tenure_months=request.tenure_months if request.tenure_months is not None else settings.DEFAULT_TENURE_MONTHS,
+                interest_rate=request.interest_rate
+                if request.interest_rate is not None
+                else settings.DEFAULT_INTEREST_RATE,
+                tenure_months=request.tenure_months
+                if request.tenure_months is not None
+                else settings.DEFAULT_TENURE_MONTHS,
                 moratorium_months=request.moratorium_months or 0,
                 payment_frequency=request.payment_frequency or "monthly",
                 moratorium_interest_treatment=request.moratorium_interest_treatment,

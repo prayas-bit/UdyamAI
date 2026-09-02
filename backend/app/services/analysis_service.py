@@ -9,12 +9,12 @@ from app.models.finance import FinancialAnalysis
 from app.models.location import District, Taluka, Village
 from app.models.market import CompetitorAnalysis, MarketAnalysis
 from app.models.scheme import Scheme, SchemeMatch
-from app.schemes.matcher import estimate_subsidy_for_match
 from app.schemas.feasibility import (
     AnalysisRunCreate,
     AnalysisStatusResponse,
     ConsolidatedAnalysisResponse,
 )
+from app.schemes.matcher import estimate_subsidy_for_match
 
 _AI_UNAVAILABLE_MARKERS = (
     "ai advisory guidance is temporarily unavailable",
@@ -42,7 +42,9 @@ def _is_ai_unavailable_text(text: str) -> bool:
     return any(marker in lowered for marker in _AI_UNAVAILABLE_MARKERS)
 
 
-def _normalize_ai_advice_payload(ai_rec: AIAnalysis | None, feas_rec: FeasibilityAnalysis | None) -> dict:
+def _normalize_ai_advice_payload(
+    ai_rec: AIAnalysis | None, feas_rec: FeasibilityAnalysis | None
+) -> dict:
     if not ai_rec:
         return {}
 
@@ -96,7 +98,9 @@ def _normalize_ai_advice_payload(ai_rec: AIAnalysis | None, feas_rec: Feasibilit
         },
         "confidence": ai_rec.confidence,
         "model_name": ai_rec.model_name,
-        "rag_status": "success" if ai_rec.model_name not in (None, "unavailable") else "no_relevant_evidence",
+        "rag_status": "success"
+        if ai_rec.model_name not in (None, "unavailable")
+        else "no_relevant_evidence",
     }
 
 
@@ -109,13 +113,15 @@ def _build_risks_payload(ai_data: dict, feas_rec: FeasibilityAnalysis | None) ->
     if isinstance(raw_ai_risks, list):
         for item in raw_ai_risks:
             if isinstance(item, str) and item.strip() and not _is_ai_unavailable_text(item):
-                risks_data.append({
-                    "risk_factor": item,
-                    "factor": item,
-                    "category": "Operational & Market Risk",
-                    "level": "Medium",
-                    "mitigation": "Establish direct supplier contracts, enforce quality control protocols, and maintain a 15-day emergency operational buffer.",
-                })
+                risks_data.append(
+                    {
+                        "risk_factor": item,
+                        "factor": item,
+                        "category": "Operational & Market Risk",
+                        "level": "Medium",
+                        "mitigation": "Establish direct supplier contracts, enforce quality control protocols, and maintain a 15-day emergency operational buffer.",
+                    }
+                )
             elif isinstance(item, dict):
                 factor = (
                     item.get("risk_factor")
@@ -125,27 +131,31 @@ def _build_risks_payload(ai_data: dict, feas_rec: FeasibilityAnalysis | None) ->
                 )
                 if _is_ai_unavailable_text(str(factor)):
                     continue
-                risks_data.append({
-                    "risk_factor": factor,
-                    "factor": factor,
-                    "category": item.get("category") or "Operating Risk",
-                    "level": item.get("level") or item.get("severity") or "Medium",
-                    "mitigation": item.get("mitigation")
-                    or item.get("evidence")
-                    or "Implement risk control protocol and maintain contingency reserve.",
-                })
+                risks_data.append(
+                    {
+                        "risk_factor": factor,
+                        "factor": factor,
+                        "category": item.get("category") or "Operating Risk",
+                        "level": item.get("level") or item.get("severity") or "Medium",
+                        "mitigation": item.get("mitigation")
+                        or item.get("evidence")
+                        or "Implement risk control protocol and maintain contingency reserve.",
+                    }
+                )
 
     if not risks_data and feas_rec:
         threat_items = _extract_indicator_list(feas_rec.threats)
         weakness_items = _extract_indicator_list(feas_rec.weaknesses)
         for idx, threat in enumerate(threat_items + weakness_items):
-            risks_data.append({
-                "risk_factor": threat,
-                "factor": threat[:60],
-                "category": "Market & Enterprise Risk",
-                "level": "Medium" if idx < len(threat_items) else "Low",
-                "mitigation": "Monitor this factor monthly, maintain contingency reserves, and align operations with matched subsidy scheme requirements.",
-            })
+            risks_data.append(
+                {
+                    "risk_factor": threat,
+                    "factor": threat[:60],
+                    "category": "Market & Enterprise Risk",
+                    "level": "Medium" if idx < len(threat_items) else "Low",
+                    "mitigation": "Monitor this factor monthly, maintain contingency reserves, and align operations with matched subsidy scheme requirements.",
+                }
+            )
 
     return risks_data
 
@@ -362,30 +372,38 @@ class AnalysisService:
         schemes_data = []
         for m in matches:
             sch_obj = db.get(Scheme, m.scheme_id) if m.scheme_id else None
-            s_name = sch_obj.name if sch_obj and sch_obj.name else "Government Welfare & Subsidy Scheme"
-            s_desc = sch_obj.description if sch_obj and sch_obj.description else "Capital subsidy and financial support scheme for micro-enterprises."
+            s_name = (
+                sch_obj.name if sch_obj and sch_obj.name else "Government Welfare & Subsidy Scheme"
+            )
+            s_desc = (
+                sch_obj.description
+                if sch_obj and sch_obj.description
+                else "Capital subsidy and financial support scheme for micro-enterprises."
+            )
             s_agency = sch_obj.agency_name if sch_obj else None
             s_url = sch_obj.official_url if sch_obj else None
 
             proj_cost = m.estimated_project_cost or 0
             sub_est = estimate_subsidy_for_match(db, m.scheme_id, proj_cost) if m.scheme_id else 0.0
 
-            schemes_data.append({
-                "scheme_id": str(m.scheme_id),
-                "scheme_name": s_name,
-                "name": s_name,
-                "description": s_desc,
-                "agency_name": s_agency,
-                "official_url": s_url,
-                "match_status": str(
-                    m.match_status.value if hasattr(m.match_status, "value") else m.match_status
-                ),
-                "match_score": m.match_score,
-                "estimated_subsidy_amount": sub_est,
-                "estimated_loan_amount": m.estimated_loan_amount,
-                "estimated_project_cost": m.estimated_project_cost,
-                "matched_conditions": m.matched_conditions or {},
-            })
+            schemes_data.append(
+                {
+                    "scheme_id": str(m.scheme_id),
+                    "scheme_name": s_name,
+                    "name": s_name,
+                    "description": s_desc,
+                    "agency_name": s_agency,
+                    "official_url": s_url,
+                    "match_status": str(
+                        m.match_status.value if hasattr(m.match_status, "value") else m.match_status
+                    ),
+                    "match_score": m.match_score,
+                    "estimated_subsidy_amount": sub_est,
+                    "estimated_loan_amount": m.estimated_loan_amount,
+                    "estimated_project_cost": m.estimated_project_cost,
+                    "matched_conditions": m.matched_conditions or {},
+                }
+            )
 
         # Feasibility analysis
         feas_rec = db.exec(

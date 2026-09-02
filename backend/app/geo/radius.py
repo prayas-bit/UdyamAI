@@ -165,7 +165,10 @@ def find_within_radius(
     try:
         rows = db.exec(stmt).all()
     except Exception as exc:
-        if "no such function" in str(exc).lower() or "sqlite" in str(getattr(db.bind, "dialect", "")).lower():
+        if (
+            "no such function" in str(exc).lower()
+            or "sqlite" in str(getattr(db.bind, "dialect", "")).lower()
+        ):
             return _find_within_radius_sqlite_fallback(
                 db=db,
                 model=model,

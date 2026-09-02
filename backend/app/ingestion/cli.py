@@ -89,7 +89,6 @@ def run_cli_all(argv: list[str] | None = None) -> int:
         parser.error("either --all, or both --domain and --file, are required")
         return 2
 
-    rejected = 0
     for domain, path in jobs:
         with Session(engine) as db:
             report = run_import(
@@ -104,7 +103,6 @@ def run_cli_all(argv: list[str] | None = None) -> int:
         print(report.summary())
         print()
     return 0
-
 
 
 if __name__ == "__main__":  # pragma: no cover

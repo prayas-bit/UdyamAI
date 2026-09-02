@@ -45,9 +45,7 @@ def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "
     market = feasibility.get("market_score")
     financial = feasibility.get("financial_score")
 
-    summary_parts = [
-        f"Based on verified backend analysis for a {category} in {location_label}."
-    ]
+    summary_parts = [f"Based on verified backend analysis for a {category} in {location_label}."]
     if overall is not None:
         summary_parts.append(f"The overall feasibility index is {float(overall):.0f}/100.")
     if market is not None:
@@ -55,7 +53,9 @@ def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "
     if financial is not None:
         summary_parts.append(f"Financial viability scores {float(financial):.0f}/100.")
     if rag_status == RAGStatus.SUCCESS.value:
-        summary_parts.append("Relevant government scheme documents were retrieved for cross-reference.")
+        summary_parts.append(
+            "Relevant government scheme documents were retrieved for cross-reference."
+        )
     else:
         summary_parts.append(
             "Recommendations below are derived from verified market, financial, competition, and scheme-matching outputs."
@@ -92,7 +92,9 @@ def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "
             f"Estimated loan requirement: INR {float(financial_ctx['potential_loan']):,.0f}."
         )
     if not financial_advice:
-        financial_advice = ["Use the backend financial summary and EMI projections as the primary decision signal."]
+        financial_advice = [
+            "Use the backend financial summary and EMI projections as the primary decision signal."
+        ]
 
     competition_ctx = prepared_context.get("competition", {}) or {}
     competition_advice = []
@@ -105,7 +107,9 @@ def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "
             f"Competitive threat level is assessed as {competition_ctx['threat_level']}."
         )
     if not competition_advice:
-        competition_advice = ["Monitor nearby competitors and differentiate on service quality and local reach."]
+        competition_advice = [
+            "Monitor nearby competitors and differentiate on service quality and local reach."
+        ]
 
     market_ctx = prepared_context.get("market", {}) or {}
     market_advice = []
@@ -118,12 +122,18 @@ def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "
     if opportunities:
         market_advice.extend(opportunities[:2])
     if not market_advice:
-        market_advice = ["Leverage local demand indicators and mandi connectivity shown in the market analysis."]
+        market_advice = [
+            "Leverage local demand indicators and mandi connectivity shown in the market analysis."
+        ]
 
-    risk_items = threats or weaknesses or [
-        "Review seasonal supply volatility and maintain working-capital buffers.",
-        "Validate subsidy eligibility directly with the implementing agency before commitment.",
-    ]
+    risk_items = (
+        threats
+        or weaknesses
+        or [
+            "Review seasonal supply volatility and maintain working-capital buffers.",
+            "Validate subsidy eligibility directly with the implementing agency before commitment.",
+        ]
+    )
 
     next_steps = [
         "Validate scheme eligibility documents with the local DIC or bank branch.",
@@ -131,7 +141,9 @@ def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "
         "Register on the MSME Udyam portal before applying for credit-linked subsidies.",
     ]
     if overall is not None and float(overall) >= 75:
-        next_steps.insert(0, "Proceed with formal loan application using the matched subsidy schemes.")
+        next_steps.insert(
+            0, "Proceed with formal loan application using the matched subsidy schemes."
+        )
 
     rec_text = recommendation.explain(feasibility)
     evidence = prepared_context.get("rag_evidence", []) or []
@@ -139,7 +151,8 @@ def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "
     return AIAdvice(
         summary=" ".join(summary_parts),
         recommendation=rec_text,
-        reasoning=strengths or ["Verified backend indicators support the proposed enterprise model."],
+        reasoning=strengths
+        or ["Verified backend indicators support the proposed enterprise model."],
         financial_advice=financial_advice,
         market_advice=market_advice,
         competition_advice=competition_advice,

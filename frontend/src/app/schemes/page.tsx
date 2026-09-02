@@ -13,7 +13,7 @@ interface SchemeItem {
   agency_name?: string;
   state?: string;
   official_url?: string;
-  active?: bool;
+  active?: boolean;
 }
 
 const FEATURED_SCHEMES: SchemeItem[] = [

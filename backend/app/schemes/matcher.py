@@ -128,7 +128,7 @@ def match_schemes_for_analysis(
     available_capital: float,
 ) -> list[SchemeMatch]:
     """Evaluate active schemes and persist deterministic matches for an analysis run."""
-    schemes = db.exec(select(Scheme).where(Scheme.active == True).order_by(Scheme.name)).all()
+    schemes = db.exec(select(Scheme).where(Scheme.active).order_by(Scheme.name)).all()
     matches: list[SchemeMatch] = []
 
     for scheme in schemes:
@@ -190,7 +190,9 @@ def match_schemes_for_analysis(
                 rule=rule,
             )
 
-        loan_percent = rule.loan_percent or max(0.0, 100.0 - (rule.beneficiary_contribution_percent or 10.0))
+        loan_percent = rule.loan_percent or max(
+            0.0, 100.0 - (rule.beneficiary_contribution_percent or 10.0)
+        )
         loan_amount = min(
             desired_project_cost * loan_percent / 100.0,
             rule.max_loan_amount or desired_project_cost,
