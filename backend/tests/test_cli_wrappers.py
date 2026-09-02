@@ -17,7 +17,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = _REPO_ROOT / "scripts" / "data"
 
 WRAPPER_SCRIPTS = sorted(SCRIPTS_DIR.glob("import_*.py"))
-assert WRAPPER_SCRIPTS, f"No wrapper scripts found in {SCRIPTS_DIR}"
+# In Docker the scripts/ dir may not be mounted — skip the whole module.
+skip_reason = f"Wrapper scripts not found at {SCRIPTS_DIR} (not mounted in container?)"
+pytestmark = pytest.mark.skipif(not WRAPPER_SCRIPTS, reason=skip_reason)
 
 
 @pytest.mark.parametrize(
