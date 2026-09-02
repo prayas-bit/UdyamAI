@@ -7,6 +7,7 @@ import logging
 
 from sqlmodel import Session, select
 
+from app.config import settings
 from app.finance.calculator import calculate_finance_engine
 from app.models.finance import FinancialAnalysis, FinancialScenario, RepaymentSchedule
 from app.models.scheme import SchemeRule
@@ -75,7 +76,7 @@ class FinanceService:
                 if request.loan_percent is not None:
                     b_percent = max(0.0, 100.0 - request.loan_percent)
                 else:
-                    b_percent = 10.0  # default beneficiary contribution percentage
+                    b_percent = settings.DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT
 
             l_percent = request.loan_percent
             if l_percent is None:
@@ -84,8 +85,8 @@ class FinanceService:
             rule = SchemeRuleInput(
                 beneficiary_contribution_percent=b_percent,
                 loan_percent=l_percent,
-                interest_rate=request.interest_rate if request.interest_rate is not None else 8.5,
-                tenure_months=request.tenure_months if request.tenure_months is not None else 84,
+                interest_rate=request.interest_rate if request.interest_rate is not None else settings.DEFAULT_INTEREST_RATE,
+                tenure_months=request.tenure_months if request.tenure_months is not None else settings.DEFAULT_TENURE_MONTHS,
                 moratorium_months=request.moratorium_months or 0,
                 payment_frequency=request.payment_frequency or "monthly",
                 moratorium_interest_treatment=request.moratorium_interest_treatment,

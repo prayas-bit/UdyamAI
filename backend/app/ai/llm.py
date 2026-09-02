@@ -8,10 +8,12 @@ or guardrails.py. See task doc sections 15-16.
 import logging
 import os
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
-_PROVIDER = os.getenv("AI_PROVIDER", "openai").lower()
-_MODEL = os.getenv("AI_MODEL")  # optional override; each provider has a default below
+_PROVIDER = (os.getenv("AI_PROVIDER") or settings.AI_PROVIDER or "gemini").lower()
+_MODEL = os.getenv("AI_MODEL") or settings.AI_MODEL
 
 
 class LLMError(Exception):
@@ -61,7 +63,7 @@ def _generate_openai(prompt: str) -> str:
             "openai package not installed", error_code="AI_PROVIDER_UNAVAILABLE"
         ) from exc
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = settings.OPENAI_API_KEY
     if not api_key:
         raise LLMError("OPENAI_API_KEY not configured", error_code="AI_PROVIDER_UNAVAILABLE")
 
@@ -95,14 +97,14 @@ def _generate_gemini(prompt: str) -> str:
             "google-genai package not installed", error_code="AI_PROVIDER_UNAVAILABLE"
         ) from exc
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = settings.GEMINI_API_KEY
     if not api_key:
         raise LLMError("GEMINI_API_KEY not configured", error_code="AI_PROVIDER_UNAVAILABLE")
 
     client = genai.Client(api_key=api_key)
     try:
         response = client.models.generate_content(
-            model=_MODEL or "gemini-2.5-flash",
+            model=_MODEL or "gemini-3.6-flash",
             contents=prompt,
         )
     except Exception as exc:

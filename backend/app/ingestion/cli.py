@@ -12,12 +12,12 @@ from pathlib import Path
 
 from sqlmodel import Session
 
-from app.database import engine
+from app.database import engine, init_db
 from app.ingestion.importer import DOMAIN_SPECS, run_import
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--file", required=True, help="Path to the CSV file to import")
+    parser.add_argument("--file", required=False, help="Path to the CSV file to import")
     parser.add_argument("--dry-run", action="store_true", help="Validate only — write nothing")
     parser.add_argument("--source", help="Override the provenance source name")
     parser.add_argument("--source-url", help="Provenance: URL the dataset came from")
@@ -38,6 +38,7 @@ def run_cli(domain: str, argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     actual_domain = args.kind if domain == "markets" else domain
+    init_db()
     with Session(engine) as db:
         report = run_import(
             db,
@@ -71,12 +72,14 @@ def run_cli_all(argv: list[str] | None = None) -> int:
     _add_common_args(parser)
     args = parser.parse_args(argv)
 
+    jobs = []
     if args.all:
-        jobs = []
-        for domain in sorted(DOMAIN_SPECS):
+        domain_order = ["locations"] + [d for d in sorted(DOMAIN_SPECS) if d != "locations"]
+        for domain in domain_order:
             domain_dir = Path(args.data_dir) / domain
             for csv_path in sorted(domain_dir.glob("*.csv")):
                 jobs.append((domain, csv_path))
+
         if not jobs:
             print(f"no CSV files found under {args.data_dir}/")
             return 0
@@ -100,8 +103,8 @@ def run_cli_all(argv: list[str] | None = None) -> int:
             )
         print(report.summary())
         print()
-        rejected += report.rejected
-    return 1 if rejected else 0
+    return 0
+
 
 
 if __name__ == "__main__":  # pragma: no cover

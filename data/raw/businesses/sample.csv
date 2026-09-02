@@ -1,7 +1,7 @@
-business_name,category_name,address,village_name,district_name,taluka_name,latitude,longitude
-Shri Balaji Kirana Stores,Retail Trade,Main Road Near Bus Stand,Wadgaon Sheri,Pune,Haveli,18.5640,73.9300
-Wadgaon Dairy Cooperative,Dairy,GP Building Road,Wadgaon Sheri,Pune,Haveli,18.5620,73.9280
-Ozar Agri Services,Agri Services,Niphad Road,Ozar,Nashik,Niphad,20.0710,74.0610
-Uruli Flour Mill,Food Processing,Market Yard Lane,Uruli Kanchan,Pune,Haveli,18.4795,74.0140
-Vaduth Poultry Farm,Poultry,Satara Road,Vaduth,Satara,Koregaon,17.5910,74.1510
-,Retail Trade,Main Road,Wadgaon Sheri,Pune,Haveli,18.5640,73.9300
+district_name,taluka_name,village_name,business_name,category_name,address,latitude,longitude
+Pune,Haveli,Wadgaon Sheri,Wadgaon Dairy Centre,Dairy Processing & Products,Main Rd,18.55,73.93
+Pune,Haveli,Uruli Kanchan,Uruli Agro Cold Store,Cold Storage & Logistics,Station Rd,18.48,74.01
+Nashik,Niphad,Ozar,Ozar Grape Packhouse,Agro-Processing & Food Manufacturing,NH 60,20.07,74.06
+Satara,Satara,Vaduth,Satara Garment Works,Textile & Garment Manufacturing,MIDC,17.70,74.03
+Solapur,Pandharpur,Bhalwani,Bhalwani Dal Mill,Agro-Processing & Food Manufacturing,Market Yard,17.68,75.32
+Pune,Haveli,Wadgaon Sheri,,Dairy Processing & Products,Main Rd,18.55,73.93

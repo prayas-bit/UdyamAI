@@ -77,6 +77,54 @@ def _get_geo_column(model: type, *, explicit: str | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _find_within_radius_sqlite_fallback(
+    db: Session,
+    model: type,
+    lat: float,
+    lng: float,
+    radius_km: float,
+    limit: int = 50,
+    filters: list[ClauseElement] | None = None,
+) -> list[dict[str, Any]]:
+    import math
+
+    def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        r_earth = 6371000.0
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = (
+            math.sin(dlat / 2.0) ** 2
+            + math.cos(math.radians(lat1))
+            * math.cos(math.radians(lat2))
+            * math.sin(dlon / 2.0) ** 2
+        )
+        return r_earth * 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+
+    stmt = select(model)
+    if filters:
+        for f in filters:
+            stmt = stmt.where(f)
+
+    all_records = db.exec(stmt).all()
+    results: list[dict[str, Any]] = []
+    radius_meters = radius_km * 1000.0
+
+    for record in all_records:
+        r_lat = getattr(record, "latitude", None)
+        r_lng = getattr(record, "longitude", None)
+        if r_lat is not None and r_lng is not None:
+            dist = haversine(lat, lng, float(r_lat), float(r_lng))
+            if dist <= radius_meters:
+                record_dict = {
+                    **{k: v for k, v in record.__dict__.items() if not k.startswith("_")},
+                    "distance_meters": round(dist, 2),
+                }
+                results.append(record_dict)
+
+    results.sort(key=lambda x: x["distance_meters"])
+    return results[:limit]
+
+
 def find_within_radius(
     db: Session,
     model: type,
@@ -91,25 +139,8 @@ def find_within_radius(
     """Find all records of *model* within *radius_km* of (lat, lng).
 
     Uses PostGIS ``ST_DWithin`` for efficient spatial queries on geography
-    columns and returns results sorted nearest-first.
-
-    Args:
-        db: Database session.
-        model: SQLModel table class with a PostGIS geography column.
-        lat: Center latitude.
-        lng: Center longitude.
-        radius_km: Search radius in kilometers.
-        limit: Maximum number of results (default 50, max 200).
-        filters: Optional list of additional SQLAlchemy WHERE predicates
-            applied **in the database query** (not in Python).  For example::
-
-                [Business.business_category_id == cat_id]
-
-        geo_column: Optional override for the geography column name.
-            When *None*, the column is resolved automatically.
-
-    Returns:
-        List of dicts, each containing model fields + ``distance_meters``.
+    columns and returns results sorted nearest-first. Falls back to Python
+    Haversine distance when PostGIS functions are unavailable (e.g. SQLite).
     """
     limit = min(limit, 500)
     radius_meters = km_to_meters(radius_km)
@@ -129,10 +160,22 @@ def find_within_radius(
         for f in filters:
             stmt = stmt.where(f)
 
-    # Use literal_column for explicit, robust ordering on the computed label
     stmt = stmt.order_by(literal_column("distance_meters")).limit(limit)
 
-    rows = db.exec(stmt).all()
+    try:
+        rows = db.exec(stmt).all()
+    except Exception as exc:
+        if "no such function" in str(exc).lower() or "sqlite" in str(getattr(db.bind, "dialect", "")).lower():
+            return _find_within_radius_sqlite_fallback(
+                db=db,
+                model=model,
+                lat=lat,
+                lng=lng,
+                radius_km=radius_km,
+                limit=limit,
+                filters=filters,
+            )
+        raise exc
 
     results: list[dict[str, Any]] = []
     for row in rows:

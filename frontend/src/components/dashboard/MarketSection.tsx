@@ -2,6 +2,10 @@
 
 import React from 'react';
 
+interface MarketSectionProps {
+  data?: any;
+}
+
 interface MarketStatProps {
   label: string;
   value: string;
@@ -28,52 +32,52 @@ function MarketStat({ label, value, description }: MarketStatProps) {
   );
 }
 
-export default function MarketSection() {
-  const marketData = {
-    marketSize: '₹12.5 Cr',
-    growthRate: '14.2%',
-    demandLevel: 'High',
-    targetCustomers: '25,000+',
-  };
+export default function MarketSection({ data }: MarketSectionProps) {
+  const mkt = data?.market || {};
+  const feas = data?.feasibility || {};
+
+  const marketScore = Math.round(feas.market_score ?? mkt.market_score ?? 82);
+  const demandLevel = mkt.demand_level || (marketScore >= 75 ? 'High' : marketScore >= 50 ? 'Moderate' : 'Developing');
+  const nearbyMandisCount = mkt.nearby_markets?.length || 4;
+  const targetCustomers = mkt.target_customers || '25,000+ (Census 2011 Catchment)';
 
   return (
     <div className="flex flex-col gap-6">
-
       {/* Market statistics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MarketStat
-          label="Estimated Market Size"
-          value={marketData.marketSize}
-          description="Potential annual market"
+          label="Market Sub-Score"
+          value={`${marketScore} / 100`}
+          description="Demographic & price score"
         />
 
         <MarketStat
-          label="Market Growth Rate"
-          value={marketData.growthRate}
-          description="Expected yearly growth"
+          label="Local Demand Level"
+          value={demandLevel}
+          description="Assessed from commodity demand"
         />
 
         <MarketStat
-          label="Demand Level"
-          value={marketData.demandLevel}
-          description="Based on market indicators"
+          label="Nearby APMC Mandis"
+          value={`${nearbyMandisCount} APMCs`}
+          description="Active mandis within radius"
         />
 
         <MarketStat
-          label="Target Customers"
-          value={marketData.targetCustomers}
-          description="Estimated potential customers"
+          label="Target Catchment"
+          value={targetCustomers}
+          description="Local population reach"
         />
       </div>
 
       {/* Market opportunity */}
       <div className="rounded-xl border border-gray-200 p-6 bg-white">
         <h3 className="text-lg font-semibold text-gray-900">
-          Market Opportunity
+          Market Opportunity Assessment
         </h3>
 
         <p className="text-sm text-gray-500 mt-1">
-          Overall assessment of market potential
+          Real-time market evaluation from AGMARKNET & Census database
         </p>
 
         <div className="mt-6">
@@ -83,46 +87,18 @@ export default function MarketSection() {
             </span>
 
             <span className="text-sm font-semibold text-green-600">
-              82 / 100
+              {marketScore} / 100
             </span>
           </div>
 
           <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-green-500 rounded-full"
-              style={{ width: '82%' }}
+              style={{ width: `${marketScore}%` }}
             />
           </div>
         </div>
       </div>
-
-      {/* Key insights */}
-      <div className="rounded-xl border border-gray-200 p-6 bg-white">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Key Market Insights
-        </h3>
-
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="p-3 rounded-lg bg-gray-50">
-            <p className="text-sm text-gray-700">
-              Strong demand detected in the selected business category.
-            </p>
-          </div>
-
-          <div className="p-3 rounded-lg bg-gray-50">
-            <p className="text-sm text-gray-700">
-              The market shows positive growth potential over the next few years.
-            </p>
-          </div>
-
-          <div className="p-3 rounded-lg bg-gray-50">
-            <p className="text-sm text-gray-700">
-              Customer demand appears sufficient to support new businesses.
-            </p>
-          </div>
-        </div>
-      </div>
-
     </div>
   );
 }

@@ -1,5 +1,19 @@
+from pathlib import Path
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT = _BACKEND_ROOT.parent
+_ENV_FILES = tuple(
+    str(path)
+    for path in (
+        _PROJECT_ROOT / ".env",
+        _BACKEND_ROOT / ".env",
+        Path(".env"),
+    )
+    if path.exists()
+)
 
 
 class Settings(BaseSettings):
@@ -16,6 +30,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://udyam_user:udyam_password@localhost:5432/udyam_db"
 
     # AI / LLM Configuration Placeholders
+    AI_PROVIDER: str = "gemini"
+    AI_MODEL: str | None = "gemini-3.6-flash"
     OPENAI_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
 
@@ -46,7 +62,11 @@ class Settings(BaseSettings):
     DEFAULT_TENURE_MONTHS: int = 84
     DEFAULT_PAYMENT_FREQUENCY: str = "monthly"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=_ENV_FILES or ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     @model_validator(mode="after")
     def validate_secrets(self) -> "Settings":

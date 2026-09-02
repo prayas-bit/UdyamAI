@@ -2,16 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import LocationSelector from "./LocationSelector";
 import BusinessSelector from "./BusinessSelector";
 import FinancialForm from "./FinancialForm";
 import ReviewScreen from "./ReviewScreen";
 import WhatYouNeed from "./WhatYouNeed";
-
-import { mockLocations } from "@/mocks/mockLocations";
-import { mockBusinessCategories } from "@/mocks/mockBusinessCategories";
 import Header from "@/components/ui/Header";
+
+import { startAnalysis } from "@/lib/api";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -33,28 +33,8 @@ export default function OnboardingPage() {
 
   // UI state
   const [showReview, setShowReview] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  // Find selected names for ReviewScreen
-  const district =
-    mockLocations.districts.find(
-      (item) => item.id === districtId
-    )?.name || "";
-
-  const taluka =
-    mockLocations.talukas.find(
-      (item) => item.id === talukaId
-    )?.name || "";
-
-  const village =
-    mockLocations.villages.find(
-      (item) => item.id === villageId
-    )?.name || "";
-
-  const business =
-    mockBusinessCategories.find(
-      (item) => item.id === businessCategoryId
-    )?.name || "";
 
   // Review button
   const handleReview = () => {
@@ -68,7 +48,7 @@ export default function OnboardingPage() {
       !capital ||
       Number(capital) < 0
     ) {
-      setError("Please fill in all required fields.");
+      setError("Please fill in all required location, business category, and capital fields.");
       return;
     }
 
@@ -81,35 +61,51 @@ export default function OnboardingPage() {
     setError("");
   };
 
-  // Start Analysis
-  const handleStartAnalysis = () => {
+  // Start Analysis via Backend API
+  const handleStartAnalysis = async () => {
+    setIsSubmitting(true);
+    setError("");
+
     const analysisData = {
       districtId,
       talukaId,
       villageId,
-      district,
-      taluka,
-      village,
       businessCategoryId,
-      business,
       capital,
       desiredProjectCost,
       language,
       timestamp: new Date().toISOString(),
     };
 
-    console.log("Analysis inputs:", analysisData);
-
     try {
       if (typeof window !== "undefined") {
         sessionStorage.setItem("udyam_analysis_inputs", JSON.stringify(analysisData));
         localStorage.setItem("udyam_analysis_inputs", JSON.stringify(analysisData));
       }
-    } catch (e) {
-      console.warn("Could not save analysis state:", e);
-    }
 
-    router.push('/dashboard');
+      // Call backend POST /api/v1/analysis
+      const res = await startAnalysis({
+        village_id: villageId,
+        business_category_id: businessCategoryId,
+        available_capital: Number(capital) || 0,
+        desired_project_cost: Number(desiredProjectCost) || Number(capital) || 100000,
+        language: (language as 'en' | 'hi' | 'mr') || 'en',
+      });
+
+      const analysisId = res.id || res.analysis_id;
+      if (analysisId) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("udyam_active_analysis_id", String(analysisId));
+        }
+        router.push(`/dashboard?analysis_id=${analysisId}`);
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (e: any) {
+      console.error("Analysis submission error:", e);
+      setError(e.message || "Failed to trigger backend feasibility pipeline. Please verify backend connectivity.");
+      setIsSubmitting(false);
+    }
   };
 
   // -----------------------------
@@ -120,16 +116,24 @@ export default function OnboardingPage() {
       <main className="min-h-screen bg-slate-50">
         <Header />
         <ReviewScreen
-          district={district}
-          taluka={taluka}
-          village={village}
-          business={business}
+          district={districtId}
+          taluka={talukaId}
+          village={villageId}
+          business={businessCategoryId}
           capital={capital}
           desiredProjectCost={desiredProjectCost}
           language={language}
+          error={error}
           onEdit={handleEdit}
           onStartAnalysis={handleStartAnalysis}
         />
+        {isSubmitting && (
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm text-white">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-400 mb-4" />
+            <h3 className="text-xl font-bold">Running UdyamAI Feasibility Pipeline...</h3>
+            <p className="mt-2 text-sm text-slate-300">Evaluating market demand, financial ratios, scheme matching & RAG AI advice.</p>
+          </div>
+        )}
       </main>
     );
   }
@@ -139,13 +143,11 @@ export default function OnboardingPage() {
   // -----------------------------
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
-
       {/* Header */}
       <Header />
 
       {/* Main content */}
       <section className="mx-auto max-w-6xl px-6 py-12">
-
         <div className="grid gap-10 lg:grid-cols-2">
 
           {/* Left side */}
@@ -159,8 +161,8 @@ export default function OnboardingPage() {
             </h1>
 
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
-              Get a feasibility assessment and discover relevant
-              opportunities based on your location, business and capital.
+              Get a real-time data feasibility assessment and discover relevant
+              opportunities based on your Maharashtra location, business and capital.
             </p>
 
             <div className="mt-8">
@@ -170,13 +172,11 @@ export default function OnboardingPage() {
 
           {/* Right side */}
           <div className="rounded-2xl border bg-white p-6 shadow-sm">
-
             <h2 className="text-xl font-semibold">
               Start your analysis
             </h2>
 
             <div className="mt-6 space-y-8">
-
               {/* Location */}
               <LocationSelector
                 districtId={districtId}
@@ -202,7 +202,6 @@ export default function OnboardingPage() {
                 setDesiredProjectCost={setDesiredProjectCost}
                 setLanguage={setLanguage}
               />
-
             </div>
 
             {/* Error */}
@@ -220,10 +219,8 @@ export default function OnboardingPage() {
             >
               Review Details →
             </button>
-
           </div>
         </div>
-
       </section>
     </main>
   );

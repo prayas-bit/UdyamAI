@@ -66,7 +66,10 @@ class Business(SQLModel, table=True):
     latitude: float | None = Field(default=None)
     longitude: float | None = Field(default=None)
     geom: Any | None = Field(
-        default=None, sa_column=Column(Geography(geometry_type="POINT", srid=4326), nullable=True)
+        default=None,
+        sa_column=Column(
+            Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=True
+        ),
     )
 
     # Provenance fields

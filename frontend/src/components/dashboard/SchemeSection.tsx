@@ -1,176 +1,178 @@
 'use client';
 
-const schemes = [
-  {
-    name: 'PM MUDRA Yojana',
-    provider: 'Government of India',
-    benefit: 'Up to ₹10 Lakh',
-    eligibility: 'High Match',
-    description:
-      'Provides collateral-free loans to small and micro enterprises for business growth.',
-    category: 'Business Loan',
-  },
-  {
-    name: 'PMEGP',
-    provider: 'Ministry of MSME',
-    benefit: 'Subsidy up to 35%',
-    eligibility: 'Eligible',
-    description:
-      'Supports new micro-enterprises through financial assistance and government subsidy.',
-    category: 'Startup Support',
-  },
-  {
-    name: 'Stand-Up India',
-    provider: 'Government of India',
-    benefit: '₹10 Lakh – ₹1 Crore',
-    eligibility: 'Moderate Match',
-    description:
-      'Provides bank loans to support entrepreneurship and new business ventures.',
-    category: 'Business Funding',
-  },
-];
+import React from 'react';
+import { Award, CheckCircle2, Building2, ExternalLink, ShieldAlert, Landmark, Sparkles } from 'lucide-react';
+
+interface SchemeSectionProps {
+  data?: any;
+}
 
 function SummaryCard({
   label,
   value,
   subtitle,
+  icon: Icon,
 }: {
   label: string;
   value: string;
   subtitle: string;
+  icon?: any;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5">
-      <p className="text-sm font-medium text-gray-500">
-        {label}
-      </p>
-
-      <h3 className="mt-2 text-2xl font-bold text-gray-900">
-        {value}
-      </h3>
-
-      <p className="mt-1 text-sm text-gray-500">
-        {subtitle}
-      </p>
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-slate-500">{label}</p>
+        {Icon && <Icon className="h-5 w-5 text-blue-600" />}
+      </div>
+      <h3 className="mt-2 text-2xl font-extrabold text-slate-900">{value}</h3>
+      <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
     </div>
   );
 }
 
-function getEligibilityColor(status: string) {
-  if (status === 'High Match') {
-    return 'bg-green-100 text-green-700';
+function getEligibilityBadge(status: string) {
+  const s = String(status || '').toLowerCase();
+  if (s.includes('high') || s.includes('eligible') || s === 'potential_match') {
+    return 'bg-emerald-100 text-emerald-800 border-emerald-300';
   }
-
-  if (status === 'Eligible') {
-    return 'bg-blue-100 text-blue-700';
+  if (s.includes('partial') || s.includes('moderate')) {
+    return 'bg-blue-100 text-blue-800 border-blue-300';
   }
-
-  return 'bg-amber-100 text-amber-700';
+  return 'bg-amber-100 text-amber-800 border-amber-300';
 }
 
-export default function SchemeSection() {
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export default function SchemeSection({ data }: SchemeSectionProps) {
+  const matchedSchemes = data?.schemes || [];
+
+  const totalSchemes = matchedSchemes.length;
+  const bestMatchName = matchedSchemes[0]?.scheme_name || matchedSchemes[0]?.name || 'No match yet';
+  const totalSubsidyEst = matchedSchemes.reduce(
+    (acc: number, s: any) => acc + (s.estimated_subsidy_amount || 0),
+    0
+  );
+
   return (
     <div className="flex flex-col gap-6">
-
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
         <SummaryCard
-          label="Eligible Schemes"
-          value="8"
-          subtitle="Based on your business profile"
+          label="Matched Schemes"
+          value={String(totalSchemes)}
+          subtitle="Evaluated against eligibility rules"
+          icon={Award}
         />
 
         <SummaryCard
-          label="Best Match"
-          value="PMEGP"
-          subtitle="Highest potential support"
+          label="Top Matched Scheme"
+          value={bestMatchName}
+          subtitle="Highest subsidy potential"
+          icon={Sparkles}
         />
 
         <SummaryCard
-          label="Funding Opportunities"
-          value="₹12L+"
-          subtitle="Estimated available support"
+          label="Est. Subsidy Support"
+          value={totalSubsidyEst > 0 ? formatCurrency(totalSubsidyEst) : '—'}
+          subtitle="Government financial support"
+          icon={Landmark}
         />
-
       </div>
 
-      {/* Scheme Recommendations */}
-      <div>
-
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Recommended Schemes
-          </h2>
-
-          <p className="mt-1 text-sm text-gray-500">
-            Government schemes matched with your business profile
-          </p>
+      {/* Main Scheme List */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">
+              Government Welfare & Capital Subsidy Schemes
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Verified eligibility against state & national enterprise guidelines
+            </p>
+          </div>
+          <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Direct Govt. Support
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="flex flex-col gap-4">
+          {matchedSchemes.length === 0 ? (
+            <p className="text-sm text-slate-600">
+              No government schemes matched this analysis. Import scheme data and rerun the analysis pipeline.
+            </p>
+          ) : null}
+          {matchedSchemes.map((s: any, idx: number) => {
+            const title = s.scheme_name || s.name || s.title || 'Government Subsidy Scheme';
+            const statusLabel = (s.match_status || 'ELIGIBLE').replace(/_/g, ' ').toUpperCase();
+            const subsidy = s.estimated_subsidy_amount || 0;
+            const loan = s.estimated_loan_amount || 0;
 
-          {schemes.map((scheme) => (
-            <div
-              key={scheme.name}
-              className="rounded-xl border border-gray-200 bg-white p-5 flex flex-col"
-            >
-
-              <div className="flex items-start justify-between gap-3">
-
-                <div>
-                  <h3 className="font-semibold text-gray-900">
-                    {scheme.name}
-                  </h3>
-
-                  <p className="mt-1 text-sm text-gray-500">
-                    {scheme.provider}
-                  </p>
+            return (
+              <div
+                key={s.scheme_id || idx}
+                className="rounded-xl border border-slate-200 bg-slate-50/50 p-5 hover:bg-slate-50 hover:border-slate-300 transition shadow-2xs flex flex-col gap-3"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-blue-600 shrink-0" />
+                    <h4 className="font-bold text-slate-900 text-base">{title}</h4>
+                  </div>
+                  <span
+                    className={`inline-flex items-center px-3 py-1 text-xs font-bold rounded-full border ${getEligibilityBadge(
+                      s.match_status
+                    )}`}
+                  >
+                    {statusLabel}
+                  </span>
                 </div>
 
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${getEligibilityColor(
-                    scheme.eligibility
-                  )}`}
-                >
-                  {scheme.eligibility}
-                </span>
+                {s.description && (
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    {s.description}
+                  </p>
+                )}
 
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {subsidy > 0 && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
+                        Capital Subsidy: {formatCurrency(subsidy)}
+                      </span>
+                    )}
+                    {loan > 0 && (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200">
+                        Loan Coverage: {formatCurrency(loan)}
+                      </span>
+                    )}
+                    {s.agency_name && (
+                      <span className="text-xs text-slate-500 font-medium">
+                        Nodal Agency: <strong className="text-slate-700">{s.agency_name}</strong>
+                      </span>
+                    )}
+                  </div>
+
+                  {s.official_url && (
+                    <a
+                      href={s.official_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition"
+                    >
+                      Official Portal <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
               </div>
-
-              <div className="mt-5">
-
-                <p className="text-sm text-gray-500">
-                  Potential Benefit
-                </p>
-
-                <p className="mt-1 text-xl font-bold text-gray-900">
-                  {scheme.benefit}
-                </p>
-
-              </div>
-
-              <p className="mt-4 text-sm leading-6 text-gray-600">
-                {scheme.description}
-              </p>
-
-              <div className="mt-4">
-                <span className="rounded-md bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                  {scheme.category}
-                </span>
-              </div>
-
-              <button className="mt-5 w-full rounded-lg border border-blue-600 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
-                View Details
-              </button>
-
-            </div>
-          ))}
-
+            );
+          })}
         </div>
-
       </div>
-
     </div>
   );
 }

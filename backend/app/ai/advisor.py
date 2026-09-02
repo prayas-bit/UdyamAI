@@ -19,6 +19,147 @@ from app.schemas.rag import RAGQueryResponse, RAGStatus
 logger = logging.getLogger(__name__)
 
 
+def _as_string_list(value: Any) -> list[str]:
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if item is not None and str(item).strip()]
+
+
+def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "en") -> AIAdvice:
+    """Build advisory guidance from verified backend analysis when the LLM is unavailable."""
+    normalized_language = language if language in {"en", "hi", "mr"} else "en"
+    location = prepared_context.get("location", {}) or {}
+    business = prepared_context.get("business", {}) or {}
+    feasibility = prepared_context.get("feasibility", {}) or {}
+    schemes = prepared_context.get("schemes", []) or []
+    rag_status = prepared_context.get("rag_status") or RAGStatus.NO_RELEVANT_EVIDENCE.value
+
+    village = location.get("village_name") or "the target village"
+    district = location.get("district_name") or ""
+    category = business.get("category_name") or "the proposed enterprise"
+    location_label = f"{village}, {district}" if district and district != "N/A" else village
+
+    overall = feasibility.get("overall_score")
+    market = feasibility.get("market_score")
+    financial = feasibility.get("financial_score")
+
+    summary_parts = [
+        f"Based on verified backend analysis for a {category} in {location_label}."
+    ]
+    if overall is not None:
+        summary_parts.append(f"The overall feasibility index is {float(overall):.0f}/100.")
+    if market is not None:
+        summary_parts.append(f"Market demand scores {float(market):.0f}/100.")
+    if financial is not None:
+        summary_parts.append(f"Financial viability scores {float(financial):.0f}/100.")
+    if rag_status == RAGStatus.SUCCESS.value:
+        summary_parts.append("Relevant government scheme documents were retrieved for cross-reference.")
+    else:
+        summary_parts.append(
+            "Recommendations below are derived from verified market, financial, competition, and scheme-matching outputs."
+        )
+
+    strengths = _as_string_list(feasibility.get("strengths"))
+    weaknesses = _as_string_list(feasibility.get("weaknesses"))
+    opportunities = _as_string_list(feasibility.get("opportunities"))
+    threats = _as_string_list(feasibility.get("threats"))
+
+    scheme_advice = [
+        f"{scheme.get('name', 'Matched scheme')}: status {scheme.get('match_status', 'review')} "
+        f"(match score {scheme.get('match_score', 'N/A')})."
+        for scheme in schemes
+        if isinstance(scheme, dict)
+    ]
+    if not scheme_advice:
+        scheme_advice = [
+            "Review matched government subsidy and credit schemes in the dashboard before finalizing capital structure."
+        ]
+
+    financial_ctx = prepared_context.get("financial", {}) or {}
+    financial_advice = []
+    if financial_ctx.get("desired_project_cost") is not None:
+        financial_advice.append(
+            f"Target project cost: INR {float(financial_ctx['desired_project_cost']):,.0f}."
+        )
+    if financial_ctx.get("available_capital") is not None:
+        financial_advice.append(
+            f"Available capital: INR {float(financial_ctx['available_capital']):,.0f}."
+        )
+    if financial_ctx.get("potential_loan") is not None:
+        financial_advice.append(
+            f"Estimated loan requirement: INR {float(financial_ctx['potential_loan']):,.0f}."
+        )
+    if not financial_advice:
+        financial_advice = ["Use the backend financial summary and EMI projections as the primary decision signal."]
+
+    competition_ctx = prepared_context.get("competition", {}) or {}
+    competition_advice = []
+    if competition_ctx.get("competition_density") is not None:
+        competition_advice.append(
+            f"Competition density in the local radius is {float(competition_ctx['competition_density']):.2f}."
+        )
+    if competition_ctx.get("threat_level"):
+        competition_advice.append(
+            f"Competitive threat level is assessed as {competition_ctx['threat_level']}."
+        )
+    if not competition_advice:
+        competition_advice = ["Monitor nearby competitors and differentiate on service quality and local reach."]
+
+    market_ctx = prepared_context.get("market", {}) or {}
+    market_advice = []
+    if market_ctx.get("demand_level"):
+        market_advice.append(f"Local demand level: {market_ctx['demand_level']}.")
+    if market_ctx.get("estimated_target_customers") is not None:
+        market_advice.append(
+            f"Estimated target customers in radius: {int(market_ctx['estimated_target_customers']):,}."
+        )
+    if opportunities:
+        market_advice.extend(opportunities[:2])
+    if not market_advice:
+        market_advice = ["Leverage local demand indicators and mandi connectivity shown in the market analysis."]
+
+    risk_items = threats or weaknesses or [
+        "Review seasonal supply volatility and maintain working-capital buffers.",
+        "Validate subsidy eligibility directly with the implementing agency before commitment.",
+    ]
+
+    next_steps = [
+        "Validate scheme eligibility documents with the local DIC or bank branch.",
+        "Prepare a detailed project report using the dashboard financial model.",
+        "Register on the MSME Udyam portal before applying for credit-linked subsidies.",
+    ]
+    if overall is not None and float(overall) >= 75:
+        next_steps.insert(0, "Proceed with formal loan application using the matched subsidy schemes.")
+
+    rec_text = recommendation.explain(feasibility)
+    evidence = prepared_context.get("rag_evidence", []) or []
+
+    return AIAdvice(
+        summary=" ".join(summary_parts),
+        recommendation=rec_text,
+        reasoning=strengths or ["Verified backend indicators support the proposed enterprise model."],
+        financial_advice=financial_advice,
+        market_advice=market_advice,
+        competition_advice=competition_advice,
+        scheme_advice=scheme_advice,
+        risks=risk_items,
+        next_steps=next_steps,
+        disclaimers=[
+            "This guidance is generated from verified backend analysis data.",
+            "Final subsidy approval remains subject to official government verification.",
+        ],
+        sources=[],
+        confidence="high" if overall is not None and float(overall) >= 60 else "medium",
+        model_name="backend-grounded-v1",
+        prompt_version="backend-grounded-v1",
+        language=normalized_language,
+        rag_status=rag_status,
+        evidence=evidence,
+    )
+
+
 def _fallback_ai_advice(language: str = "en") -> AIAdvice:
     normalized_language = language if language in {"en", "hi", "mr"} else "en"
     return AIAdvice(
@@ -73,6 +214,7 @@ def generate_advice(
     """
     logger.info("Generating advice", extra={"language": language})
 
+    prepared_context: dict[str, Any] | None = None
     try:
         # 1. Construct natural RAG query from AnalysisContext
         ctx_dict = context_builder._as_dict(analysis_context)
@@ -122,11 +264,6 @@ def generate_advice(
                     query=query_str,
                     scheme_id=primary_scheme_id,
                     language=language,
-                )
-            except ImportError as exc:
-                logger.error("RAG retriever module import failed: %s", exc)
-                rag_response = RAGQueryResponse(
-                    status=RAGStatus.NO_RELEVANT_EVIDENCE.value, evidence=[]
                 )
             except (ConnectionError, TimeoutError) as exc:
                 logger.warning("RAG vector store network/timeout issue: %s", exc)
@@ -195,9 +332,17 @@ def generate_advice(
         validated_output["recommendation"] = rec_text
 
         return AIAdvice.model_validate(validated_output)
-    except llm.LLMError as exc:
-        logger.warning("AI provider call failed; returning degraded fallback: %s", exc)
+    except (ImportError, ModuleNotFoundError):
+        raise
+    except (llm.LLMError, json.JSONDecodeError, ConnectionError, TimeoutError, ValueError) as exc:
+        logger.warning(
+            "AI advisor pipeline recoverable issue; returning degraded fallback: %s", exc
+        )
+        if prepared_context:
+            return _backend_grounded_advice(prepared_context, language)
         return _fallback_ai_advice(language)
-    except Exception:  # pragma: no cover - defensive fallback for incomplete pipeline modules
-        logger.exception("AI advice generation failed; returning degraded fallback")
+    except Exception as exc:
+        logger.exception("AI advice generation failed with unexpected error: %s", exc)
+        if prepared_context:
+            return _backend_grounded_advice(prepared_context, language)
         return _fallback_ai_advice(language)
