@@ -57,6 +57,14 @@ class FeasibilityScoreResult(BaseModel):
         ..., ge=0.0, le=100.0, description="Weighted overall feasibility score"
     )
     swot: SWOTIndicators = Field(default_factory=SWOTIndicators)
+    data_confidence: str = Field(
+        default="high", description="Data sufficiency & confidence level ('high', 'medium', 'low', 'insufficient')"
+    )
+    market_data_available: bool = Field(default=True)
+    financial_data_available: bool = Field(default=True)
+    competition_data_available: bool = Field(default=True)
+    infrastructure_data_available: bool = Field(default=True)
+    risk_data_available: bool = Field(default=True)
 
 
 class FeasibilityCalculationRequest(LocationValidatedModel):
@@ -161,6 +169,12 @@ class FeasibilityAnalysisResponse(BaseModel):
     risks: list[str] | dict[str, Any] | None = None
     warnings: list[str] | dict[str, Any] | None = None
     confidence: str | None = Field(default=None, max_length=50)
+    data_confidence: str | None = Field(default=None, max_length=50)
+    market_data_available: bool = True
+    financial_data_available: bool = True
+    competition_data_available: bool = True
+    infrastructure_data_available: bool = True
+    risk_data_available: bool = True
     created_at: datetime
 
     model_config = {"from_attributes": True}

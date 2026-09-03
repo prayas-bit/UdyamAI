@@ -5,6 +5,7 @@ import Header from '@/components/ui/Header';
 import Link from 'next/link';
 import { getSchemes } from '@/lib/api';
 import { Building2, ExternalLink, Search, Sparkles, Award, ShieldCheck, Loader2 } from 'lucide-react';
+import { useLanguageStore } from '@/stores/languageStore';
 
 interface SchemeItem {
   id: string;
@@ -59,6 +60,7 @@ export default function SchemesPage() {
   const [schemes, setSchemes] = useState<SchemeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const t = useLanguageStore((s) => s.t);
 
   useEffect(() => {
     async function load() {
@@ -93,18 +95,18 @@ export default function SchemesPage() {
         <div className="rounded-2xl bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white p-8 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-full text-xs font-semibold mb-3">
-              <Sparkles className="h-3.5 w-3.5 text-blue-400" /> Government Welfare Directory
+              <Sparkles className="h-3.5 w-3.5 text-blue-400" /> {t('schemes.badge')}
             </span>
-            <h1 className="text-3xl font-extrabold tracking-tight">Enterprise Subsidy & Welfare Schemes</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight">{t('schemes.title')}</h1>
             <p className="text-slate-300 text-sm mt-2 leading-relaxed">
-              Explore state and national capital support schemes, interest subventions, and collateral-free bank loan facilities curated for rural micro-entrepreneurs in Maharashtra.
+              {t('schemes.desc')}
             </p>
           </div>
           <Link
             href="/onboarding"
             className="shrink-0 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition shadow-md"
           >
-            Check My Scheme Eligibility
+            {t('schemes.check')}
           </Link>
         </div>
 
@@ -116,7 +118,7 @@ export default function SchemesPage() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search schemes by name, agency, or industry..."
+              placeholder={t('schemes.search')}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-900"
             />
           </div>

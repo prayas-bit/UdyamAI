@@ -51,6 +51,8 @@ function formatCurrency(amount: number) {
 
 export default function SchemeSection({ data }: SchemeSectionProps) {
   const matchedSchemes = data?.schemes || [];
+  const aiAdvice = data?.ai_advice || {};
+  const schemeAdviceList: string[] = aiAdvice.scheme_advice || [];
 
   const totalSchemes = matchedSchemes.length;
   const bestMatchName = matchedSchemes[0]?.scheme_name || matchedSchemes[0]?.name || 'No match yet';
@@ -79,7 +81,7 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
 
         <SummaryCard
           label="Est. Subsidy Support"
-          value={totalSubsidyEst > 0 ? formatCurrency(totalSubsidyEst) : '—'}
+          value={totalSubsidyEst > 0 ? formatCurrency(totalSubsidyEst) : (totalSchemes > 0 ? 'Calculation pending' : '—')}
           subtitle="Government financial support"
           icon={Landmark}
         />
@@ -102,11 +104,28 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
         </div>
 
         <div className="flex flex-col gap-4">
-          {matchedSchemes.length === 0 ? (
+          {matchedSchemes.length === 0 && schemeAdviceList.length === 0 && (
             <p className="text-sm text-slate-600">
               No government schemes matched this analysis. Import scheme data and rerun the analysis pipeline.
             </p>
-          ) : null}
+          )}
+
+          {/* AI Scheme Guidance (when no schemes matched but AI has advice) */}
+          {matchedSchemes.length === 0 && schemeAdviceList.length > 0 && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-2">
+                AI Scheme Guidance
+              </p>
+              <ul className="space-y-1.5">
+                {schemeAdviceList.map((advice: string, i: number) => (
+                  <li key={i} className="text-sm text-blue-900 flex items-start gap-1.5">
+                    <span className="text-blue-500 font-bold mt-0.5">•</span>
+                    <span>{advice}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {matchedSchemes.map((s: any, idx: number) => {
             const title = s.scheme_name || s.name || s.title || 'Government Subsidy Scheme';
             const statusLabel = (s.match_status || 'ELIGIBLE').replace(/_/g, ' ').toUpperCase();

@@ -327,8 +327,7 @@ def _resolve_category(
         )
     category = BusinessCategory(name=row.category_name)
     db.add(category)
-    db.flush()  # populate ID without committing — final commit in run_import()
-    db.refresh(category)
+    db.flush()
     report.warnings.append(f"created business category: {row.category_name}")
     return category
 

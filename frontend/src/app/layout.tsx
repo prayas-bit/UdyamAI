@@ -1,6 +1,7 @@
 import './globals.css';
 import React from 'react';
-
+import ChatWidget from '@/components/chat/ChatWidget';
+import LanguageProvider from '@/components/i18n/LanguageProvider';
 
 export const metadata = {
   title: "UdyamAI",
@@ -14,7 +15,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <LanguageProvider>
+          {children}
+          <ChatWidget />
+        </LanguageProvider>
+      </body>
     </html>
   );
 }

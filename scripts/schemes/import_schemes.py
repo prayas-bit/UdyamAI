@@ -2,13 +2,13 @@
 """Import official government schemes and eligibility rules into database.
 
 Usage:
-    python scripts/schemes/import_schemes.py [--file data/raw/schemes/schemes_maharashtra.json] [--dry-run]
+    python scripts/schemes/import_schemes.py [--file data/raw/schemes/schemes_master_dataset.json] [--dry-run]
 """
 
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -33,8 +33,7 @@ def _clear_scheme_children(db: Session, scheme_id) -> None:
 def import_schemes(json_path: Path, dry_run: bool = False) -> None:
     init_db()
     if not json_path.exists():
-
-        print(f"Error: file not found: {json_path}")
+        print(f"Error: file not found: {json_path}", flush=True)
         sys.exit(1)
 
     with open(json_path, encoding="utf-8") as f:
@@ -44,6 +43,7 @@ def import_schemes(json_path: Path, dry_run: bool = False) -> None:
         data = [data]
 
     imported_count = 0
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     with Session(engine) as db:
         for item in data:
             name = item.get("name")
@@ -58,7 +58,7 @@ def import_schemes(json_path: Path, dry_run: bool = False) -> None:
                 scheme.state = item.get("state", scheme.state)
                 scheme.official_url = item.get("official_url", scheme.official_url)
                 scheme.source = item.get("source", scheme.source)
-                scheme.last_verified_at = datetime.utcnow()
+                scheme.last_verified_at = now_utc
                 db.add(scheme)
             else:
                 scheme = Scheme(
@@ -70,7 +70,7 @@ def import_schemes(json_path: Path, dry_run: bool = False) -> None:
                     official_url=item.get("official_url"),
                     source=item.get("source", "Government Scheme Portal"),
                     active=item.get("active", True),
-                    last_verified_at=datetime.utcnow(),
+                    last_verified_at=now_utc,
                 )
                 db.add(scheme)
 
@@ -135,23 +135,22 @@ def import_schemes(json_path: Path, dry_run: bool = False) -> None:
                 name="Government Scheme Registries",
                 dataset_name="schemes",
                 url="https://myscheme.gov.in",
-                last_updated_at=datetime.utcnow(),
+                last_updated_at=now_utc,
             )
             db.add(ds)
 
         if not dry_run:
             db.commit()
-            print(f"Successfully imported/updated {imported_count} government schemes.")
+            print(f"Successfully imported/updated {imported_count} government schemes.", flush=True)
         else:
             db.rollback()
-            print(f"Dry-run: validated {imported_count} government schemes.")
-
+            print(f"Dry-run: validated {imported_count} government schemes.", flush=True)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Import government schemes JSON into database")
     parser.add_argument(
-        "--file", default="data/raw/schemes/schemes_maharashtra.json", help="Path to schemes JSON"
+        "--file", default="data/raw/schemes/schemes_master_dataset.json", help="Path to schemes JSON"
     )
     parser.add_argument("--dry-run", action="store_true", help="Validate without writing")
     args = parser.parse_args()

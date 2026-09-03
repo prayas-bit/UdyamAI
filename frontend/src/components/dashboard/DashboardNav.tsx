@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useLanguageStore } from '@/stores/languageStore';
 
 export type DashboardSection =
   | 'overview'
@@ -12,15 +13,15 @@ export type DashboardSection =
   | 'risks'
   | 'report';
 
-const SECTIONS: { id: DashboardSection; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'financial', label: 'Financial' },
-  { id: 'market', label: 'Market' },
-  { id: 'competition', label: 'Competition' },
-  { id: 'map', label: 'Map' },
-  { id: 'schemes', label: 'Schemes' },
-  { id: 'risks', label: 'Risks' },
-  { id: 'report', label: 'AI Report' },
+const SECTION_KEYS: { id: DashboardSection; key: string }[] = [
+  { id: 'overview', key: 'dash.nav.overview' },
+  { id: 'financial', key: 'dash.nav.financial' },
+  { id: 'market', key: 'dash.nav.market' },
+  { id: 'competition', key: 'dash.nav.competition' },
+  { id: 'map', key: 'dash.nav.map' },
+  { id: 'schemes', key: 'dash.nav.schemes' },
+  { id: 'risks', key: 'dash.nav.risks' },
+  { id: 'report', key: 'dash.nav.report' },
 ];
 
 interface DashboardNavProps {
@@ -29,10 +30,12 @@ interface DashboardNavProps {
 }
 
 export default function DashboardNav({ activeSection, onSectionChange }: DashboardNavProps) {
+  const t = useLanguageStore((s) => s.t);
+
   return (
     <nav className="border-b border-gray-200 mb-6 overflow-x-auto">
       <div className="flex gap-1 min-w-max">
-        {SECTIONS.map((section) => {
+        {SECTION_KEYS.map((section) => {
           const isActive = section.id === activeSection;
           return (
             <button
@@ -44,7 +47,7 @@ export default function DashboardNav({ activeSection, onSectionChange }: Dashboa
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              {section.label}
+              {t(section.key)}
             </button>
           );
         })}

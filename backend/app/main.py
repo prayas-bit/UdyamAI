@@ -5,6 +5,7 @@ from app.api.routes import (
     agriculture,
     analysis,
     businesses,
+    chat,
     economic,
     feasibility,
     finance,
@@ -47,6 +48,12 @@ setup_exception_handlers(app)
 
 # Include Routers
 app.include_router(health.router, prefix="/health", tags=["Health"])
+app.include_router(
+    health.router,
+    prefix="/api/v1/health",
+    tags=["Health"],
+    include_in_schema=False,
+)
 
 app.include_router(
     locations.router,
@@ -107,6 +114,16 @@ app.include_router(
     analysis.router,
     prefix="/api/v1/analysis",
     tags=["Feasibility Analysis"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    chat.router, prefix="/chat", tags=["Chat"], dependencies=[Depends(default_limiter)]
+)
+app.include_router(
+    chat.router,
+    prefix="/api/v1/chat",
+    tags=["Chat"],
     include_in_schema=False,
     dependencies=[Depends(default_limiter)],
 )

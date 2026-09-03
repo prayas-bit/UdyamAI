@@ -1,5 +1,7 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:8000';
 
 export interface District {
   id: string;
@@ -22,8 +24,59 @@ export interface Village {
   district_id?: string;
   lgd_code?: number | string;
   pin_code?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
+export interface NearbyVillage {
+  id: string;
+  name: string;
+  district_id: string;
+  taluka_id: string;
+  pin_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  distance_meters: number;
+}
+
+export interface NearbyBusiness {
+  id: string;
+  name?: string | null;
+  category?: string | null;
+  business_category_id?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  distance_meters: number;
+}
+
+export interface NearbyMarket {
+  id: string;
+  name?: string | null;
+  market_type?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  distance_meters: number;
+}
+
+export interface NearbyFacility {
+  id: string;
+  name?: string | null;
+  facility_type?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  capacity?: number | null;
+  distance_meters: number;
+}
+
+
+export interface VillageMarketAnalysis {
+  village_id?: string;
+  village_name?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  nearby_markets?: Array<{ name?: string; distance_km?: number; market_type?: string }>;
+}
 
 export interface BusinessCategory {
   id: string;
@@ -50,34 +103,58 @@ export interface ConsolidatedAnalysisData {
   completed_at?: string;
   location?: {
     id?: string;
+    village_id?: string;
     name?: string;
     district_name?: string;
     taluka_name?: string;
     village_name?: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
   business?: {
     category_id?: string;
     category_name?: string;
   };
   financial?: {
-    own_capital?: number;
-    project_cost?: number;
-    loan_required?: number;
-    subsidy_estimated?: number;
-    break_even_months?: number;
+    available_capital?: number;
+    required_contribution?: number;
+    desired_project_cost?: number;
+    feasible_project_cost?: number;
+    calculated_loan?: number;
+    monthly_emi?: number;
+    total_interest?: number;
+    total_repayment?: number;
+    working_capital?: number;
     monthly_revenue?: number;
-    monthly_expenses?: number;
-    monthly_net_profit?: number;
-    dscr?: number;
+    monthly_operating_cost?: number;
+    monthly_profit?: number;
+    break_even_months?: number;
+    repayment_capacity?: number;
+    interest_rate?: number;
+    tenure_months?: number;
+    margin_gap?: number;
   };
   market?: {
     market_score?: number;
     demand_level?: string;
+    population_estimate?: number;
+    household_estimate?: number;
+    target_customers?: number;
+    demand_indicators?: Record<string, any>;
+    pricing_indicators?: Record<string, any>;
+    radius_km?: number;
+    data_confidence?: string;
     nearby_markets?: any[];
     commodity_prices?: any[];
   };
   competition?: {
     competition_score?: number;
+    competitor_count?: number;
+    competition_density?: number;
+    competitor_distribution?: Record<string, any>;
+    identified_gaps?: Record<string, any>;
+    radius_km?: number;
+    data_confidence?: string;
     total_competitors?: number;
     competitors?: any[];
   };
@@ -113,6 +190,13 @@ export interface ConsolidatedAnalysisData {
     opportunities?: string[];
     threats?: string[];
     financial_advice?: string[];
+    market_advice?: string[];
+    competition_advice?: string[];
+    scheme_advice?: string[];
+    risks?: string[];
+    confidence?: string;
+    model_name?: string;
+    prompt_version?: string;
     swot?: {
       strengths?: string[];
       weaknesses?: string[];
@@ -123,6 +207,7 @@ export interface ConsolidatedAnalysisData {
     schemes_guidance?: string[];
     rag_status?: string;
     evidence_chunks?: any[];
+    evidence?: any[];
   };
   risks?: Array<{
     risk_factor?: string;
@@ -243,6 +328,40 @@ export async function downloadAnalysisPdf(analysisId: string): Promise<void> {
   window.URL.revokeObjectURL(url);
 }
 
+export interface ChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  provider_available: boolean;
+}
+
+export async function sendChatMessage(
+  message: string,
+  history: ChatTurn[] = [],
+  language: 'en' | 'hi' | 'mr' = 'en',
+): Promise<ChatResponse> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 90_000);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history, language }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText || `Chat failed (${res.status})`);
+    }
+    return res.json();
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 export async function getSchemes() {
   try {
     const res = await fetch(`${API_BASE_URL}/api/v1/schemes`);
@@ -253,3 +372,100 @@ export async function getSchemes() {
     return [];
   }
 }
+
+function buildGeoQuery(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  extra?: Record<string, string | number | undefined>,
+) {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lng: String(lng),
+    radius_km: String(radiusKm),
+    limit: '100',
+  });
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value != null && value !== '') params.set(key, String(value));
+    }
+  }
+  return params.toString();
+}
+
+export async function getNearbyMarkets(
+  lat: number,
+  lng: number,
+  radiusKm = 25,
+  marketType?: string,
+): Promise<NearbyMarket[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/locations/nearby/markets?${buildGeoQuery(lat, lng, radiusKm, {
+      market_type: marketType,
+    })}`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch nearby markets (${res.status})`);
+  return res.json();
+}
+
+export async function getNearbyBusinesses(
+  lat: number,
+  lng: number,
+  radiusKm = 10,
+  categoryId?: string,
+): Promise<NearbyBusiness[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/locations/nearby/businesses?${buildGeoQuery(lat, lng, radiusKm, {
+      category_id: categoryId,
+    })}`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch nearby businesses (${res.status})`);
+  return res.json();
+}
+
+export async function getNearbyFacilities(
+  lat: number,
+  lng: number,
+  radiusKm = 10,
+  facilityType?: string,
+): Promise<NearbyFacility[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/locations/nearby/facilities?${buildGeoQuery(lat, lng, radiusKm, {
+      facility_type: facilityType,
+    })}`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch nearby facilities (${res.status})`);
+  return res.json();
+}
+
+export async function getNearbyVillages(
+  lat: number,
+  lng: number,
+  radiusKm = 10,
+): Promise<NearbyVillage[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/locations/nearby/villages?${buildGeoQuery(lat, lng, radiusKm)}`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch nearby villages (${res.status})`);
+  return res.json();
+}
+
+export async function getVillageMarketAnalysis(
+  villageId: string,
+  categoryId?: string,
+): Promise<VillageMarketAnalysis> {
+  const params = new URLSearchParams();
+  if (categoryId) params.set('business_category_id', categoryId);
+  const query = params.toString();
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/markets/analyze/${villageId}${query ? `?${query}` : ''}`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch village market analysis (${res.status})`);
+  return res.json();
+}
+
+function formatKm(meters: number): string {
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+}
+
+export { formatKm };

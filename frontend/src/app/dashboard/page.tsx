@@ -12,6 +12,7 @@ import SchemeSection from '@/components/dashboard/SchemeSection';
 import RiskSection from '@/components/dashboard/RiskSection';
 import MapContainer from '@/components/maps/MapContainer';
 import { getConsolidatedAnalysis, downloadAnalysisPdf, ConsolidatedAnalysisData } from '@/lib/api';
+import { useLanguageStore } from '@/stores/languageStore';
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -20,6 +21,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const t = useLanguageStore((s) => s.t);
 
   const analysisId = searchParams.get('analysis_id') || (typeof window !== 'undefined' ? localStorage.getItem('udyam_active_analysis_id') : null);
 
@@ -47,18 +49,27 @@ function DashboardContent() {
   const marketScore = feas.market_score != null ? Math.round(feas.market_score) : null;
   const financialScore = feas.financial_score != null ? Math.round(feas.financial_score) : null;
   const competitionScore = feas.competition_score != null ? Math.round(feas.competition_score) : null;
+  const infrastructureScore = feas.infrastructure_score != null ? Math.round(feas.infrastructure_score) : null;
   const riskScore = feas.risk_score != null ? Math.round(feas.risk_score) : null;
 
-  const riskLevel =
-    riskScore == null ? 'Unknown' : riskScore >= 70 ? 'Low' : riskScore >= 40 ? 'Medium' : 'High';
+  const riskLevelKey =
+    riskScore == null ? 'unknown' : riskScore >= 70 ? 'low' : riskScore >= 40 ? 'medium' : 'high';
+  const riskLevelLabel =
+    riskLevelKey === 'unknown'
+      ? t('dash.riskUnknown')
+      : riskLevelKey === 'low'
+        ? t('dash.riskLow')
+        : riskLevelKey === 'medium'
+          ? t('dash.riskMedium')
+          : t('dash.riskHigh');
   const label =
     overallScore == null
-      ? 'Awaiting analysis'
+      ? t('dash.awaiting')
       : overallScore >= 75
-        ? 'Highly Feasible'
+        ? t('dash.highly')
         : overallScore >= 50
-          ? 'Moderately Feasible'
-          : 'High Risk Feasibility';
+          ? t('dash.moderately')
+          : t('dash.highRisk');
 
   const locName = data?.location
     ? `${data.location.village_name || data.location.name || ''}${data.location.district_name ? `, ${data.location.district_name}` : ''}`.trim()
@@ -92,11 +103,11 @@ function DashboardContent() {
 
   function getRiskColor(level: string) {
     switch (level) {
-      case 'Low':
+      case 'low':
         return 'text-green-700 bg-green-100';
-      case 'Medium':
+      case 'medium':
         return 'text-amber-700 bg-amber-100';
-      case 'High':
+      case 'high':
         return 'text-red-700 bg-red-100';
       default:
         return 'text-gray-700 bg-gray-100';
@@ -121,7 +132,7 @@ function DashboardContent() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
         <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-        <p className="text-slate-600 font-medium">Fetching real-time UdyamAI analysis results...</p>
+        <p className="text-slate-600 font-medium">{t('dash.loading')}</p>
       </div>
     );
   }
@@ -130,7 +141,7 @@ function DashboardContent() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-6 text-center">
         <Header />
-        <p className="mt-8 text-slate-700 font-medium">No analysis found. Run a feasibility assessment from onboarding first.</p>
+        <p className="mt-8 text-slate-700 font-medium">{t('dash.noAnalysis')}</p>
       </div>
     );
   }
@@ -142,10 +153,10 @@ function DashboardContent() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Feasibility Dashboard</h1>
+            <h1 className="text-3xl font-bold text-slate-900">{t('dash.title')}</h1>
             <p className="text-gray-600 mt-1 font-medium">
-              {bizName || 'Business category pending'} •{' '}
-              <span className="text-blue-600 font-semibold">{locName || 'Location pending'}</span>
+              {bizName || t('dash.pendingBiz')} •{' '}
+              <span className="text-blue-600 font-semibold">{locName || t('dash.pendingLoc')}</span>
             </p>
           </div>
           {analysisId && (
@@ -162,32 +173,59 @@ function DashboardContent() {
             {/* Overall feasibility banner */}
             <div className="rounded-xl border border-gray-200 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white shadow-sm gap-4">
               <div>
-                <span className="text-sm font-medium text-gray-500">Overall Feasibility Index</span>
+                <span className="text-sm font-medium text-gray-500">{t('dash.overall')}</span>
                 <div className="text-4xl font-bold mt-1 text-slate-900">
-                  {overallScore != null ? `${overallScore}/100` : '—'}
+                  {overallScore != null ? `${overallScore}/100` : (data?.ai_advice?.confidence ? `AI: ${data.ai_advice.confidence}` : '—')}
                 </div>
                 <span className="text-blue-700 font-semibold">{label}</span>
               </div>
-              <div className={`px-4 py-2 rounded-lg font-semibold text-sm ${getRiskColor(riskLevel)}`}>
-                {riskLevel} Risk Profile
+              <div className={`px-4 py-2 rounded-lg font-semibold text-sm ${getRiskColor(riskLevelKey)}`}>
+                {riskLevelLabel} {t('dash.riskProfile')}
               </div>
             </div>
 
             {/* Score breakdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {marketScore != null && <ScoreCard label="Market Demand Score" score={marketScore} />}
-              {financialScore != null && <ScoreCard label="Financial Feasibility" score={financialScore} />}
-              {competitionScore != null && <ScoreCard label="Competition Margin" score={competitionScore} />}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {marketScore != null && <ScoreCard label={t('dash.marketScore')} score={marketScore} />}
+              {financialScore != null && <ScoreCard label={t('dash.financialScore')} score={financialScore} />}
+              {competitionScore != null && <ScoreCard label={t('dash.competitionScore')} score={competitionScore} />}
+              {infrastructureScore != null && <ScoreCard label="Infrastructure Score" score={infrastructureScore} />}
+              {riskScore != null && <ScoreCard label="Risk Profile Index" score={riskScore} />}
             </div>
+
+            {/* Analysis Data Status */}
+            {overallScore == null && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">Analysis Data Status</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${data?.financial ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className="text-slate-600">Financial</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${data?.market ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className="text-slate-600">Market</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${data?.competition ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className="text-slate-600">Competition</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${data?.ai_advice?.model_name && data.ai_advice.model_name !== 'unavailable' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className="text-slate-600">AI Advisor</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* AI Advisor Recommendations (RAG Evidence Driven) */}
             <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/70 to-indigo-50/50 p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-bold text-slate-900">UdyamAI Advisor Guidance (RAG Verified)</h3>
+                <h3 className="text-lg font-bold text-slate-900">{t('dash.advisorTitle')}</h3>
               </div>
               <p className="text-sm leading-relaxed text-slate-700 font-normal">
-                {advisorSummary || 'Advisor guidance will appear here after analysis completes.'}
+                {advisorSummary || t('dash.advisorEmpty')}
               </p>
               {data?.ai_advice?.recommendation && (
                 <p className="mt-3 text-sm font-medium text-slate-800">
@@ -196,7 +234,7 @@ function DashboardContent() {
               )}
               {advisorRecommendations.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Strategic Recommendations</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('dash.recommendations')}</h4>
                   <ul className="list-disc list-inside text-sm text-slate-800 space-y-1">
                     {advisorRecommendations.map((rec, i) => (
                       <li key={i}>{rec}</li>
@@ -211,13 +249,15 @@ function DashboardContent() {
         {activeSection === 'financial' && <FinancialSection data={data} />}
         {activeSection === 'market' && <MarketSection data={data} />}
         {activeSection === 'competition' && <CompetitionSection data={data} />}
-        {activeSection === 'map' && <MapContainer title="Location & APMC Mandi Spatial Coverage" />}
+        {activeSection === 'map' && (
+          <MapContainer title={t('dash.mapTitle')} data={data} />
+        )}
         {activeSection === 'schemes' && <SchemeSection data={data} />}
         {activeSection === 'risks' && <RiskSection data={data} />}
         {activeSection === 'report' && (
           <div className="rounded-xl border border-gray-200 p-8 bg-white shadow-sm text-center">
-            <h3 className="text-xl font-bold text-slate-900 mb-2">Comprehensive Feasibility PDF Report</h3>
-            <p className="text-sm text-slate-500 mb-4">Complete financial model, market spatial graphs, and scheme application forms.</p>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">{t('dash.pdfTitle')}</h3>
+            <p className="text-sm text-slate-500 mb-4">{t('dash.pdfDesc')}</p>
             {pdfError && (
               <p className="text-sm text-red-600 mb-3">{pdfError}</p>
             )}
@@ -229,10 +269,10 @@ function DashboardContent() {
               {pdfLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating PDF...
+                  {t('dash.pdfDownloading')}
                 </>
               ) : (
-                'Download Official PDF Report'
+                t('dash.pdfButton')
               )}
             </button>
           </div>

@@ -2,3 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+@import 'leaflet/dist/leaflet.css';
+
+.leaflet-container {
+  font-family: inherit;
+}
+@import 'leaflet/dist/leaflet.css';
+

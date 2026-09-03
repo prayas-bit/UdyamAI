@@ -66,6 +66,16 @@ def explain(feasibility: dict) -> str:
 
     summary_parts.append(f"The backend recommendation is: {recommendation}.")
 
+    data_conf = str(feasibility.get("data_confidence", "")).lower()
+    if data_conf in ("low", "insufficient"):
+        summary_parts.append(
+            "Note: Empirical data confidence is limited for this location, so indicators should be treated as preliminary rather than exhaustive."
+        )
+    elif feasibility.get("competition_data_available") is False:
+        summary_parts.append(
+            "Note: Zero local business records are available in the database to assess competition directly."
+        )
+
     if overall is not None and overall >= 75:
         summary_parts.append(
             "This suggests the business appears reasonably feasible based on the verified backend analysis."
