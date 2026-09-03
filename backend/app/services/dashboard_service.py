@@ -73,11 +73,14 @@ class DashboardService:
     @staticmethod
     def _finance_tools(db: Session, profile_id: UUID) -> FinanceToolsOverview:
         # Expenses
-        expenses_count = db.scalar(
-            select(func.count()).select_from(Expense).where(
-                Expense.profile_id == profile_id, ~Expense.deleted
+        expenses_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(Expense)
+                .where(Expense.profile_id == profile_id, ~Expense.deleted)
             )
-        ) or 0
+            or 0
+        )
         expenses_total = _sum_or_zero(
             db.scalar(
                 select(func.sum(Expense.amount)).where(
@@ -105,23 +108,22 @@ class DashboardService:
                 )
             )
         )
-        cf_count = db.scalar(
-            select(func.count()).select_from(CashFlowEntry).where(
-                CashFlowEntry.profile_id == profile_id, ~CashFlowEntry.deleted
+        cf_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(CashFlowEntry)
+                .where(CashFlowEntry.profile_id == profile_id, ~CashFlowEntry.deleted)
             )
-        ) or 0
+            or 0
+        )
 
         # Savings
         savings_goals = db.exec(
-            select(SavingsGoal).where(
-                SavingsGoal.profile_id == profile_id, ~SavingsGoal.deleted
-            )
+            select(SavingsGoal).where(SavingsGoal.profile_id == profile_id, ~SavingsGoal.deleted)
         ).all()
         total_saved = sum(g.current_amount for g in savings_goals)
         total_target = sum(g.target_amount for g in savings_goals)
-        savings_progress = (
-            round(total_saved / total_target * 100, 1) if total_target > 0 else 0.0
-        )
+        savings_progress = round(total_saved / total_target * 100, 1) if total_target > 0 else 0.0
 
         # Budgets
         budgets = db.exec(
@@ -130,9 +132,7 @@ class DashboardService:
         budgets_active = sum(1 for b in budgets if b.status == "active")
 
         # Debts
-        debts = db.exec(
-            select(Debt).where(Debt.profile_id == profile_id, ~Debt.deleted)
-        ).all()
+        debts = db.exec(select(Debt).where(Debt.profile_id == profile_id, ~Debt.deleted)).all()
         total_outstanding = sum(d.outstanding_amount for d in debts)
         total_principal = sum(d.principal_amount for d in debts)
         total_emi = sum(d.emi_amount or 0 for d in debts)
@@ -154,11 +154,14 @@ class DashboardService:
         latest_credit = credit_rows[0] if credit_rows else None
 
         # Recycle bin (items still pending permanent deletion)
-        recycle_count = db.scalar(
-            select(func.count()).select_from(RecycleBinItem).where(
-                RecycleBinItem.profile_id == profile_id, ~RecycleBinItem.restored
+        recycle_count = (
+            db.scalar(
+                select(func.count())
+                .select_from(RecycleBinItem)
+                .where(RecycleBinItem.profile_id == profile_id, ~RecycleBinItem.restored)
             )
-        ) or 0
+            or 0
+        )
 
         return FinanceToolsOverview(
             expenses=ExpenseOverview(count=expenses_count, total=round(expenses_total, 2)),

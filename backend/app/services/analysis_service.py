@@ -149,20 +149,20 @@ def _build_risks_payload(ai_data: dict, feas_rec: FeasibilityAnalysis | None) ->
             return "Differentiate service quality and build customer loyalty programs."
         if "seasonal" in risk_lower or "supply" in risk_lower:
             return "Maintain working-capital buffers and diversify supply sources across seasons."
-        return f"Monitor this risk factor and review with financial advisor before committing."
+        return "Monitor this risk factor and review with financial advisor before committing."
 
     if isinstance(raw_ai_risks, list):
         for item in raw_ai_risks:
             if isinstance(item, str) and item.strip() and not _is_ai_unavailable_text(item):
                 risks_data.append(
-                {
-                    "risk_factor": item,
-                    "factor": item,
-                    "category": "Operational & Market Risk",
-                    "level": "Medium",
-                    "mitigation": _suggest_mitigation(item, "Operational & Market Risk"),
-                }
-            )
+                    {
+                        "risk_factor": item,
+                        "factor": item,
+                        "category": "Operational & Market Risk",
+                        "level": "Medium",
+                        "mitigation": _suggest_mitigation(item, "Operational & Market Risk"),
+                    }
+                )
             elif isinstance(item, dict):
                 factor = (
                     item.get("risk_factor")
@@ -180,7 +180,9 @@ def _build_risks_payload(ai_data: dict, feas_rec: FeasibilityAnalysis | None) ->
                         "level": item.get("level") or item.get("severity") or "Medium",
                         "mitigation": item.get("mitigation")
                         or item.get("evidence")
-                        or _suggest_mitigation(str(factor), item.get("category") or "Operating Risk"),
+                        or _suggest_mitigation(
+                            str(factor), item.get("category") or "Operating Risk"
+                        ),
                     }
                 )
 
@@ -465,7 +467,7 @@ class AnalysisService:
         # Enrich fin_data with market-derived estimates when DB values are missing
         # ------------------------------------------------------------------
         feasible_cost = fin_data.get("feasible_project_cost") or 0.0
-        pricing = (mkt_data.get("pricing_indicators") or {})
+        pricing = mkt_data.get("pricing_indicators") or {}
         target_customers = mkt_data.get("target_customers") or 0
         avg_price = (
             pricing.get("average_market_price")
@@ -488,17 +490,28 @@ class AnalysisService:
             est_monthly_cost = round(est_monthly_rev * 0.60, 2)
 
         est_monthly_profit = fin_data.get("monthly_profit")
-        if est_monthly_profit is None and est_monthly_rev is not None and est_monthly_cost is not None:
+        if (
+            est_monthly_profit is None
+            and est_monthly_rev is not None
+            and est_monthly_cost is not None
+        ):
             est_monthly_profit = round(est_monthly_rev - est_monthly_cost, 2)
 
         est_break_even = fin_data.get("break_even_months")
-        if est_break_even is None and feasible_cost > 0 and est_monthly_profit and est_monthly_profit > 0:
+        if (
+            est_break_even is None
+            and feasible_cost > 0
+            and est_monthly_profit
+            and est_monthly_profit > 0
+        ):
             est_break_even = round(feasible_cost / est_monthly_profit, 1)
 
         est_repayment_capacity = fin_data.get("repayment_capacity")
         est_emi = fin_data.get("monthly_emi") or 0.0
         if est_repayment_capacity is None and est_monthly_rev is not None and est_emi > 0:
-            est_repayment_capacity = round((est_monthly_rev - (est_monthly_cost or 0.0)) / est_emi, 2)
+            est_repayment_capacity = round(
+                (est_monthly_rev - (est_monthly_cost or 0.0)) / est_emi, 2
+            )
 
         fin_data["monthly_revenue"] = est_monthly_rev
         fin_data["monthly_operating_cost"] = est_monthly_cost

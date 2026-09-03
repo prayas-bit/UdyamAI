@@ -4,7 +4,9 @@ from app.ai.llm import LLMError
 
 
 def test_chat_endpoint_returns_llm_reply(client):
-    with patch("app.api.routes.chat.generate_chat_reply", return_value=("Hello from UdyamAI.", True)):
+    with patch(
+        "app.api.routes.chat.generate_chat_reply", return_value=("Hello from UdyamAI.", True)
+    ):
         response = client.post("/api/v1/chat", json={"message": "What is PMEGP?"})
     assert response.status_code == 200
     data = response.json()

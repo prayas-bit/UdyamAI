@@ -122,6 +122,7 @@ class FeasibilityService:
             return 0
 
         from app.models.location import Population
+
         try:
             pop_records_raw = (
                 db.exec(select(Population).where(Population.location_id.in_(all_vil_ids))).all()
@@ -138,7 +139,9 @@ class FeasibilityService:
         # Fallback to direct village population lookup if list is empty
         if pop_reach == 0 and village_id:
             try:
-                t_pop = db.exec(select(Population).where(Population.location_id == village_id)).first()
+                t_pop = db.exec(
+                    select(Population).where(Population.location_id == village_id)
+                ).first()
             except Exception:
                 t_pop = None
             if t_pop:
@@ -165,7 +168,12 @@ class FeasibilityService:
 
         # 2. Competition metrics
         from app.models.business import BusinessCategory
-        cat_obj = _get_entity_by_id(db, BusinessCategory, business_category_id) if business_category_id else None
+
+        cat_obj = (
+            _get_entity_by_id(db, BusinessCategory, business_category_id)
+            if business_category_id
+            else None
+        )
         cat_name = cat_obj.name if cat_obj else None
 
         comp_res = analyze_competition(
@@ -179,7 +187,10 @@ class FeasibilityService:
             comp_res = {}
         calc_comp_density = float(comp_res.get("competition_density_per_km2", 0.0) or 0.0)
         direct_comp_count = int(
-            comp_res.get("direct_competitor_count", comp_res.get("competitor_count", len(nearby_biz))) or 0
+            comp_res.get(
+                "direct_competitor_count", comp_res.get("competitor_count", len(nearby_biz))
+            )
+            or 0
         )
 
         # 3. Infrastructure metrics
@@ -210,7 +221,11 @@ class FeasibilityService:
             calc_subsidy = float(estimated_subsidy)
         elif matched_schemes:
             subsidies = [
-                float(getattr(s, "estimated_subsidy_amount", 0.0) or getattr(s, "potential_subsidy", 0.0) or 0.0)
+                float(
+                    getattr(s, "estimated_subsidy_amount", 0.0)
+                    or getattr(s, "potential_subsidy", 0.0)
+                    or 0.0
+                )
                 for s in matched_schemes
             ]
             calc_subsidy = max(subsidies) if subsidies else 0.0

@@ -55,9 +55,7 @@ def get_current_profile(
     A database trigger normally creates the row at signup; this fallback
     also covers users that predate that trigger.
     """
-    profile = session.exec(
-        select(Profile).where(Profile.auth_user_id == user.id)
-    ).first()
+    profile = session.exec(select(Profile).where(Profile.auth_user_id == user.id)).first()
     if profile:
         return profile
 
@@ -73,9 +71,7 @@ def get_current_profile(
         # The auth.users -> profiles trigger may have created the row between
         # our SELECT and INSERT (signup happens concurrently).
         session.rollback()
-        created = session.exec(
-            select(Profile).where(Profile.auth_user_id == user.id)
-        ).first()
+        created = session.exec(select(Profile).where(Profile.auth_user_id == user.id)).first()
         if created:
             return created
         raise

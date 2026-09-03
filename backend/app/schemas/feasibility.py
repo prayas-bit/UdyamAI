@@ -58,7 +58,8 @@ class FeasibilityScoreResult(BaseModel):
     )
     swot: SWOTIndicators = Field(default_factory=SWOTIndicators)
     data_confidence: str = Field(
-        default="high", description="Data sufficiency & confidence level ('high', 'medium', 'low', 'insufficient')"
+        default="high",
+        description="Data sufficiency & confidence level ('high', 'medium', 'low', 'insufficient')",
     )
     market_data_available: bool = Field(default=True)
     financial_data_available: bool = Field(default=True)

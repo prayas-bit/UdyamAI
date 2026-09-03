@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, Relationship, SQLModel
@@ -14,7 +14,10 @@ class Debt(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     profile_id: UUID = Field(foreign_key="profiles.id", nullable=False, index=True)
     lender_name: str = Field(nullable=False, description="Name of bank/institution/person")
-    loan_type: str = Field(nullable=False, description="e.g. term_loan, working_capital, credit_card, personal, government_scheme")
+    loan_type: str = Field(
+        nullable=False,
+        description="e.g. term_loan, working_capital, credit_card, personal, government_scheme",
+    )
     principal_amount: float = Field(nullable=False, ge=0)
     outstanding_amount: float = Field(nullable=False, ge=0)
     interest_rate: float = Field(nullable=False, ge=0, le=100, description="Annual interest rate %")

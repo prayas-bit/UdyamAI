@@ -6,6 +6,7 @@ Zero LLM calls are made during score calculations.
 """
 
 import os
+from typing import Any
 
 # ------------------------------------------------------------------ #
 # Configurable Scoring Weights (Must sum to 1.0)

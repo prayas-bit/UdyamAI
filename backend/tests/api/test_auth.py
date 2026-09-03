@@ -16,8 +16,13 @@ from app.services.auth_service import (
 TEST_SECRET = "test-supabase-jwt-secret"
 
 
-def _mint_token(*, secret: str = TEST_SECRET, sub: str = "11111111-1111-4111-8111-111111111111",
-                phone: str = "+919999999999", ttl_seconds: int = 3600) -> str:
+def _mint_token(
+    *,
+    secret: str = TEST_SECRET,
+    sub: str = "11111111-1111-4111-8111-111111111111",
+    phone: str = "+919999999999",
+    ttl_seconds: int = 3600,
+) -> str:
     now = datetime.now(timezone.utc)
     claims = {
         "sub": sub,

@@ -106,7 +106,11 @@ def build_swot_indicators(
                 "Financial infrastructure gap: Zero formal banking or ATM facilities within radius."
             )
 
-    if market_data_available and nearest_market_distance_km is not None and nearest_market_distance_km > 10.0:
+    if (
+        market_data_available
+        and nearest_market_distance_km is not None
+        and nearest_market_distance_km > 10.0
+    ):
         weaknesses.append(
             f"Distant market access: Nearest commercial mandi is {nearest_market_distance_km:.1f}km away."
         )

@@ -163,9 +163,7 @@ def _ensure_profiles_columns(eng):
     with eng.connect() as conn:
         for col_name, col_type in required_columns.items():
             if col_name not in existing:
-                conn.execute(
-                    text(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_type}")
-                )
+                conn.execute(text(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_type}"))
         conn.commit()
 
 

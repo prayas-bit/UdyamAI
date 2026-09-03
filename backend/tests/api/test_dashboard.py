@@ -59,9 +59,7 @@ def test_dashboard_service_builds_overview_with_finance_rows():
         phone="+919999999999",
     )
     live = Expense(profile_id=profile.id, category="rent", amount=1200.5)
-    deleted = Expense(
-        profile_id=profile.id, category="rent", amount=9999.0, deleted=True
-    )
+    deleted = Expense(profile_id=profile.id, category="rent", amount=9999.0, deleted=True)
 
     with Session(engine) as session:
         session.add(profile)

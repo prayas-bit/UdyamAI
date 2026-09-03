@@ -139,17 +139,6 @@ def assess_market_risks(
 
     pop_reach = int(_safe_num(population_reach, 0.0))
     comp_density = max(0.0, _safe_num(competition_density, 0.0))
-    mkt_count = int(_safe_num(nearby_markets_count, 0.0))
-    mkt_dist = (
-        _safe_num(nearest_market_distance_km, 0.0)
-        if nearest_market_distance_km is not None
-        else None
-    )
-    vol_score = (
-        _safe_num(price_volatility_score, 0.0)
-        if price_volatility_score is not None
-        else None
-    )
 
     if data_available is False:
         return {
@@ -167,9 +156,7 @@ def assess_market_risks(
 
     # 1. high_competitor_density
     if comp_density > HIGH_COMPETITOR_DENSITY_THRESHOLD:
-        severity = (
-            "high" if comp_density >= VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD else "medium"
-        )
+        severity = "high" if comp_density >= VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD else "medium"
         score_add = 3.0 if severity == "high" else 2.0
         overall_risk_score += score_add
         risks.append(

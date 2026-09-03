@@ -382,27 +382,33 @@ class AnalysisOrchestrator:
             feas_conf = str(raw_feas_conf) if isinstance(raw_feas_conf, str) else "high"
 
             mkt_avail = (
-                getattr(feasibility_score_res, "market_data_available")
+                feasibility_score_res.market_data_available
                 if isinstance(getattr(feasibility_score_res, "market_data_available", None), bool)
                 else True
             )
             fin_avail = (
-                getattr(feasibility_score_res, "financial_data_available")
-                if isinstance(getattr(feasibility_score_res, "financial_data_available", None), bool)
+                feasibility_score_res.financial_data_available
+                if isinstance(
+                    getattr(feasibility_score_res, "financial_data_available", None), bool
+                )
                 else True
             )
             comp_avail = (
-                getattr(feasibility_score_res, "competition_data_available")
-                if isinstance(getattr(feasibility_score_res, "competition_data_available", None), bool)
+                feasibility_score_res.competition_data_available
+                if isinstance(
+                    getattr(feasibility_score_res, "competition_data_available", None), bool
+                )
                 else True
             )
             infra_avail = (
-                getattr(feasibility_score_res, "infrastructure_data_available")
-                if isinstance(getattr(feasibility_score_res, "infrastructure_data_available", None), bool)
+                feasibility_score_res.infrastructure_data_available
+                if isinstance(
+                    getattr(feasibility_score_res, "infrastructure_data_available", None), bool
+                )
                 else True
             )
             risk_avail = (
-                getattr(feasibility_score_res, "risk_data_available")
+                feasibility_score_res.risk_data_available
                 if isinstance(getattr(feasibility_score_res, "risk_data_available", None), bool)
                 else True
             )

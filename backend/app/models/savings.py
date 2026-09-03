@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, Relationship, SQLModel
@@ -13,7 +13,9 @@ class SavingsGoal(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     profile_id: UUID = Field(foreign_key="profiles.id", nullable=False, index=True)
-    name: str = Field(nullable=False, description="e.g. Emergency Fund, Equipment Purchase, Working Capital")
+    name: str = Field(
+        nullable=False, description="e.g. Emergency Fund, Equipment Purchase, Working Capital"
+    )
     target_amount: float = Field(nullable=False, ge=0)
     current_amount: float = Field(default=0.0, ge=0)
     target_date: datetime | None = Field(default=None)

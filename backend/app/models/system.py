@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, Relationship, SQLModel
@@ -10,11 +10,15 @@ if TYPE_CHECKING:
 
 class RecycleBinItem(SQLModel, table=True):
     """Stores deleted items for recovery or permanent deletion"""
+
     __tablename__ = "recycle_bin_items"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     profile_id: UUID = Field(foreign_key="profiles.id", nullable=False, index=True)
-    item_type: str = Field(nullable=False, description="expense, cash_flow, savings_goal, budget, debt, borrowing, credit_score")
+    item_type: str = Field(
+        nullable=False,
+        description="expense, cash_flow, savings_goal, budget, debt, borrowing, credit_score",
+    )
     item_id: UUID = Field(nullable=False, description="Original item ID")
     item_data: str = Field(nullable=False, description="JSON serialized item data for recovery")
     deleted_at: datetime = Field(default_factory=datetime.utcnow)
@@ -28,11 +32,15 @@ class RecycleBinItem(SQLModel, table=True):
 
 class PrivacyConsent(SQLModel, table=True):
     """Tracks user data sharing and privacy preferences"""
+
     __tablename__ = "privacy_consents"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     profile_id: UUID = Field(foreign_key="profiles.id", nullable=False, index=True)
-    consent_type: str = Field(nullable=False, description="data_sharing, analytics, marketing, ai_processing, third_party_sharing")
+    consent_type: str = Field(
+        nullable=False,
+        description="data_sharing, analytics, marketing, ai_processing, third_party_sharing",
+    )
     granted: bool = Field(nullable=False)
     granted_at: datetime | None = Field(default=None)
     revoked_at: datetime | None = Field(default=None)
@@ -47,6 +55,7 @@ class PrivacyConsent(SQLModel, table=True):
 
 class UserSettings(SQLModel, table=True):
     """Application settings and preferences"""
+
     __tablename__ = "user_settings"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)

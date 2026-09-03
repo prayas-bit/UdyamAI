@@ -254,8 +254,12 @@ class TestFeasibilityServiceOrchestration:
             assert res.competition_score == 95.0
             assert res.competition_data_available is True
             assert res.data_confidence in ("low", "medium", "high")
-            assert any("Favorable competitive environment" in s for s in res.swot.strength_indicators)
-            assert not any("Insufficient data to assess competition" in w for w in res.swot.weakness_indicators)
+            assert any(
+                "Favorable competitive environment" in s for s in res.swot.strength_indicators
+            )
+            assert not any(
+                "Insufficient data to assess competition" in w for w in res.swot.weakness_indicators
+            )
 
 
 class TestFeasibilityAPIEndpoints:

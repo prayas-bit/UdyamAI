@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, Relationship, SQLModel
@@ -13,7 +13,10 @@ class Expense(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     profile_id: UUID = Field(foreign_key="profiles.id", nullable=False, index=True)
-    category: str = Field(nullable=False, description="e.g. rent, utilities, inventory, salaries, marketing, transport, other")
+    category: str = Field(
+        nullable=False,
+        description="e.g. rent, utilities, inventory, salaries, marketing, transport, other",
+    )
     description: str | None = Field(default=None)
     amount: float = Field(nullable=False, ge=0)
     date: datetime = Field(default_factory=datetime.utcnow)

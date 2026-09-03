@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -7,7 +6,10 @@ from pydantic import BaseModel, Field
 
 # ============ EXPENSE SCHEMAS ============
 class ExpenseCreate(BaseModel):
-    category: str = Field(..., description="rent, utilities, inventory, salaries, marketing, transport, raw_materials, other")
+    category: str = Field(
+        ...,
+        description="rent, utilities, inventory, salaries, marketing, transport, raw_materials, other",
+    )
     description: str | None = None
     amount: float = Field(..., ge=0)
     date: datetime | None = None
@@ -50,7 +52,10 @@ class ExpenseSummary(BaseModel):
 # ============ CASH FLOW SCHEMAS ============
 class CashFlowEntryCreate(BaseModel):
     entry_type: str = Field(..., description="income or expense")
-    category: str = Field(..., description="sales, loan_disbursement, rent, salaries, inventory_purchase, utilities, other")
+    category: str = Field(
+        ...,
+        description="sales, loan_disbursement, rent, salaries, inventory_purchase, utilities, other",
+    )
     description: str | None = None
     amount: float = Field(..., ge=0)
     date: datetime | None = None
@@ -213,7 +218,9 @@ class BudgetOverview(BaseModel):
 # ============ DEBT SCHEMAS ============
 class DebtCreate(BaseModel):
     lender_name: str
-    loan_type: str = Field(..., description="term_loan, working_capital, credit_card, personal, government_scheme")
+    loan_type: str = Field(
+        ..., description="term_loan, working_capital, credit_card, personal, government_scheme"
+    )
     principal_amount: float = Field(..., ge=0)
     outstanding_amount: float = Field(..., ge=0)
     interest_rate: float = Field(..., ge=0, le=100)
@@ -391,7 +398,9 @@ class RecycleBinRestoreRequest(BaseModel):
 
 # ============ PRIVACY & CONSENT SCHEMAS ============
 class PrivacyConsentCreate(BaseModel):
-    consent_type: str = Field(..., description="data_sharing, analytics, marketing, ai_processing, third_party_sharing")
+    consent_type: str = Field(
+        ..., description="data_sharing, analytics, marketing, ai_processing, third_party_sharing"
+    )
     granted: bool
 
 

@@ -1,5 +1,3 @@
-import time
-
 from fastapi import APIRouter, HTTPException
 
 from app.config import settings
@@ -30,7 +28,7 @@ def llm_health():
     availability.  A full probe (actual generation) is intentionally avoided
     here so this endpoint stays cheap to call.
     """
-    from app.ai.llm import _configured_provider, _configured_model, _gemini_models, _openai_models
+    from app.ai.llm import _configured_model, _configured_provider, _gemini_models, _openai_models
 
     provider = _configured_provider()
     model = _configured_model()
@@ -42,11 +40,13 @@ def llm_health():
     openai_pkg = False
     try:
         import google.genai  # noqa: F401
+
         gemini_pkg = True
     except ImportError:
         pass
     try:
         import openai  # noqa: F401
+
         openai_pkg = True
     except ImportError:
         pass
@@ -88,7 +88,9 @@ def llm_health():
 
     # Overall status
     primary_ready = providers.get(provider, {}).get("status") == "ready"
-    any_fallback = any(p.get("status") == "ready" for name, p in providers.items() if name != provider)
+    any_fallback = any(
+        p.get("status") == "ready" for name, p in providers.items() if name != provider
+    )
     overall = "healthy" if primary_ready else ("degraded" if any_fallback else "unavailable")
 
     return {
