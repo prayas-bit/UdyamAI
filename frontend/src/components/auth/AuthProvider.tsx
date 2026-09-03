@@ -14,10 +14,11 @@ import { clearAuthStorage, storeProfile, storeUserPhone } from '@/lib/auth';
 import { apiFetch, setAccessToken } from '@/lib/http';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
-const API_BASE_URL =
+const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:8000';
+  'http://localhost:8000'
+).replace(/\/+$/, '');
 
 export interface AuthUser {
   id: string;
