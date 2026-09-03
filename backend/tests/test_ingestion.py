@@ -525,9 +525,7 @@ class TestMergeAndCache:
                 "district_name,taluka_name,village_name,year,population_total\n"
                 "Pune,Haveli,Wadgaon,2021,1000\n"
             )
-            report1 = run_import(
-                db, "population", first, location_cache=cache, existing_keys=keys
-            )
+            report1 = run_import(db, "population", first, location_cache=cache, existing_keys=keys)
             corrected = write_csv(
                 "district_name,taluka_name,village_name,year,population_total\n"
                 "Pune,Haveli,Wadgaon,2021,1500\n"

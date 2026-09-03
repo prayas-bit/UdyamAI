@@ -198,7 +198,9 @@ def resolve_village(
         else:
             taluka_id, _ = _resolve_one(
                 db,
-                find_fn=lambda: LocationService.find_taluka(db, taluka_name, district_id=district_id),
+                find_fn=lambda: LocationService.find_taluka(
+                    db, taluka_name, district_id=district_id
+                ),
                 create_fn=lambda: LocationService.resolve_location(
                     db, taluka_name, level="taluka", district_id=district_id
                 ),

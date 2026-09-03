@@ -299,9 +299,7 @@ def _import_population(
         "population",
         lambda r: (r.location_id, r.year),
         lambda r: r.id,
-        lambda db: db.exec(
-            select(Population.id, Population.location_id, Population.year)
-        ).all(),
+        lambda db: db.exec(select(Population.id, Population.location_id, Population.year)).all(),
     )
     key = (village_id, row.year)
     existing = _existing_instance(db, keys, key, Population)
@@ -348,9 +346,7 @@ def _import_weather(
         "weather",
         lambda r: (r.location_id, r.date),
         lambda r: r.id,
-        lambda db: db.exec(
-            select(Weather.id, Weather.location_id, Weather.date)
-        ).all(),
+        lambda db: db.exec(select(Weather.id, Weather.location_id, Weather.date)).all(),
     )
     key = (village_id, row.date)
     existing = _existing_instance(db, keys, key, Weather)
@@ -453,7 +449,9 @@ def _merge_market(
     _merge_provenance(market, prov)
 
 
-def _import_market(db: Session, row: MarketRow, prov: Provenance, report: ImportReport) -> Market | None:
+def _import_market(
+    db: Session, row: MarketRow, prov: Provenance, report: ImportReport
+) -> Market | None:
     """Find a market by name + village; create it when absent, merge when present."""
     name_key = (clean_str(row.market_name) or "").lower()
     # Resolved up front: the dedup scope is the village the market sits in.
