@@ -110,8 +110,13 @@ def init_db():
         agriculture,
         ai,
         analysis,
+        budget,
         business,
+        cash_flow,
+        credit,
+        debt,
         economic,
+        expenses,
         finance,
         infrastructure,
         livestock,
@@ -120,7 +125,9 @@ def init_db():
         provenance,
         rag,
         report,
+        savings,
         scheme,
+        system,
         user,
         weather,
     )
@@ -133,6 +140,31 @@ def init_db():
             conn.commit()
 
     SQLModel.metadata.create_all(eng)
+
+    # Ensure schema compatibility: add any columns that are defined in
+    # the SQLAlchemy model but missing from an older database schema.
+    if "postgresql" in str(eng.url):
+        _ensure_profiles_columns(eng)
+
+
+def _ensure_profiles_columns(eng):
+    """Add missing optional columns to the profiles table if they were
+    introduced after the table was first created."""
+    required_columns = {
+        "email": "TEXT",
+        "phone": "TEXT",
+        "business_name": "TEXT",
+        "business_type": "TEXT",
+    }
+    from sqlalchemy import inspect
+
+    inspector = inspect(eng)
+    existing = {col["name"] for col in inspector.get_columns("profiles")}
+    with eng.connect() as conn:
+        for col_name, col_type in required_columns.items():
+            if col_name not in existing:
+                conn.execute(text(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_type}"))
+        conn.commit()
 
 
 def get_session():

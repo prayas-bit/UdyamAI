@@ -767,16 +767,27 @@ class MarketService:
 
         pop_reach = sum(v.get("population", 0) or 0 for v in nearby_vils)
 
-        nearest_dist = (
-            min([m.get("distance_meters", 100000) / 1000.0 for m in nearby_mkts])
-            if nearby_mkts
-            else None
-        )
+        valid_distances = [
+            m["distance_meters"] / 1000.0
+            for m in nearby_mkts
+            if isinstance(m, dict) and m.get("distance_meters") is not None
+        ]
+        nearest_dist = min(valid_distances) if valid_distances else None
         single_mkt_name = nearby_mkts[0].get("name") if len(nearby_mkts) == 1 else None
+        has_empirical_data = bool(
+            nearby_biz
+            or nearby_facs
+            or nearby_mkts
+            or nearby_vils
+            or is_seasonal
+            or price_volatility
+            or competition_density is not None
+        )
         logger.debug(
             f"Risk assessment empirical inputs: comp_density={calc_comp_density}, "
             f"facility_counts={facility_counts}, pop_reach={pop_reach}, "
-            f"nearby_mkts={len(nearby_mkts)}, nearest_dist={nearest_dist}"
+            f"nearby_mkts={len(nearby_mkts)}, nearest_dist={nearest_dist}, "
+            f"has_empirical_data={has_empirical_data}"
         )
 
         risk_res = assess_market_risks(
@@ -789,6 +800,7 @@ class MarketService:
             single_market_name=single_mkt_name,
             is_seasonal=is_seasonal,
             radius_km=radius_km,
+            data_available=has_empirical_data,
         )
 
         risk_items = [

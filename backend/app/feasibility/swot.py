@@ -18,6 +18,11 @@ def build_swot_indicators(
     identified_risk_flags: list[str] | None = None,
     matched_scheme_names: list[str] | None = None,
     nearest_market_distance_km: float | None = None,
+    competition_data_available: bool = True,
+    market_data_available: bool = True,
+    financial_data_available: bool = True,
+    infrastructure_data_available: bool = True,
+    risk_data_available: bool = True,
 ) -> dict[str, list[str]]:
     """Build structured SWOT indicators based on empirical rules.
 
@@ -43,35 +48,47 @@ def build_swot_indicators(
     threats: list[str] = []
 
     # 1. Strengths
-    if population_reach >= 10000:
-        strengths.append(
-            f"High population reach: {population_reach:,} residents within primary analysis radius."
-        )
-    elif population_reach >= 5000:
-        strengths.append(
-            f"Moderate population reach: {population_reach:,} residents available locally."
-        )
+    if market_data_available:
+        if population_reach >= 10000:
+            strengths.append(
+                f"High population reach: {population_reach:,} residents within primary analysis radius."
+            )
+        elif population_reach >= 5000:
+            strengths.append(
+                f"Moderate population reach: {population_reach:,} residents available locally."
+            )
 
-    if desired_project_cost > 0:
+    if financial_data_available and desired_project_cost > 0:
         equity_pct = (available_capital / desired_project_cost) * 100.0
         if equity_pct >= 30.0:
             strengths.append(
                 f"Strong financial equity position: {equity_pct:.1f}% self-contribution available (INR {available_capital:,.0f})."
             )
 
-    if competition_density <= 2.0:
-        strengths.append(
-            f"Favorable competitive environment: Low competitor density of {competition_density:.2f} units/km²."
-        )
+    if competition_data_available:
+        if competition_density <= 2.0:
+            strengths.append(
+                f"Favorable competitive environment: Low competitor density of {competition_density:.2f} units/km²."
+            )
 
     fin_infra = facility_counts.get("bank", 0) + facility_counts.get("atm", 0)
-    if fin_infra >= 2:
+    if infrastructure_data_available and fin_infra >= 2:
         strengths.append(
             f"Established financial access: {fin_infra} formal banking/ATM facilities in radius."
         )
 
     # 2. Weaknesses
-    if desired_project_cost > 0:
+    if not competition_data_available:
+        weaknesses.append(
+            "Insufficient data to assess competition: No commercial business records found within analysis radius."
+        )
+
+    if not market_data_available:
+        weaknesses.append(
+            "Insufficient data to assess market access: No local commercial market or population records identified."
+        )
+
+    if financial_data_available and desired_project_cost > 0:
         equity_pct = (available_capital / desired_project_cost) * 100.0
         if equity_pct < 15.0:
             weaknesses.append(
@@ -79,17 +96,21 @@ def build_swot_indicators(
             )
 
     logistics_infra = facility_counts.get("cold_storage", 0) + facility_counts.get("warehouse", 0)
-    if logistics_infra == 0:
-        weaknesses.append(
-            "Logistics infrastructure deficit: Zero cold storage or warehousing facilities identified within radius."
-        )
+    if infrastructure_data_available:
+        if logistics_infra == 0:
+            weaknesses.append(
+                "Logistics infrastructure deficit: Zero cold storage or warehousing facilities identified within radius."
+            )
+        if fin_infra == 0:
+            weaknesses.append(
+                "Financial infrastructure gap: Zero formal banking or ATM facilities within radius."
+            )
 
-    if fin_infra == 0:
-        weaknesses.append(
-            "Financial infrastructure gap: Zero formal banking or ATM facilities within radius."
-        )
-
-    if nearest_market_distance_km is not None and nearest_market_distance_km > 10.0:
+    if (
+        market_data_available
+        and nearest_market_distance_km is not None
+        and nearest_market_distance_km > 10.0
+    ):
         weaknesses.append(
             f"Distant market access: Nearest commercial mandi is {nearest_market_distance_km:.1f}km away."
         )
@@ -106,24 +127,27 @@ def build_swot_indicators(
             f"Capital subsidy potential: Estimated financial support of up to INR {estimated_subsidy:,.0f} available."
         )
 
-    if 0.0 < competition_density <= 3.0:
+    if competition_data_available and 0.0 <= competition_density <= 3.0:
         opportunities.append(
             "Early market entrant opportunity: Unmet local demand with low competitor saturation."
         )
 
-    if logistics_infra > 0:
+    if infrastructure_data_available and logistics_infra > 0:
         opportunities.append(
             f"Existing logistics access: {logistics_infra} storage/cold chain facilities available for supply chain integration."
         )
 
     # 4. Threats
-    if competition_density >= 6.0:
+    if competition_data_available and competition_density >= 6.0:
         threats.append(
             f"High market competition: {competition_density:.2f} competitors/km² identified in local market."
         )
 
-    for flag in identified_risk_flags:
-        threats.append(f"Market Risk: {flag}")
+    if not risk_data_available:
+        threats.append("Market Risk: Insufficient data to evaluate local market risk indicators.")
+    else:
+        for flag in identified_risk_flags:
+            threats.append(f"Market Risk: {flag}")
 
     return {
         "strength_indicators": strengths,

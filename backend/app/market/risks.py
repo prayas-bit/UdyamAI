@@ -86,6 +86,20 @@ def _safe_value(v: Any) -> float | int | str | bool | None:
             return str(v)
 
 
+def _safe_num(val: Any, default: float = 0.0) -> float:
+    """Safely converts value to float falling back to default on invalid inputs or mocks."""
+    if val is None or isinstance(val, bool):
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        try:
+            return float(val)
+        except ValueError:
+            return default
+    return default
+
+
 def assess_market_risks(
     competition_density: float = 0.0,
     facility_counts: dict[str, int] | None = None,
@@ -97,6 +111,7 @@ def assess_market_risks(
     is_seasonal: bool = False,
     price_volatility_score: float | None = None,
     radius_km: float = 10.0,
+    data_available: bool | None = None,
 ) -> dict[str, Any]:
     """Assess market risks based on competition, infrastructure, volatility, access, and population reach.
 
@@ -111,8 +126,10 @@ def assess_market_risks(
 
     Returns:
         Dict containing:
-        - overall_market_risk_level ('low', 'medium', 'high')
+        - overall_market_risk_level ('low', 'medium', 'high', 'insufficient_data')
         - risk_score (0.0 to 10.0)
+        - sufficient_data (bool)
+        - data_available (bool)
         - risks: List of {risk_type, severity, evidence, source, value} dicts
         - identified_risk_flags: List of summary strings
         - provenance: List of data sources evaluated
@@ -120,23 +137,35 @@ def assess_market_risks(
     if facility_counts is None:
         facility_counts = {}
 
+    pop_reach = int(_safe_num(population_reach, 0.0))
+    comp_density = max(0.0, _safe_num(competition_density, 0.0))
+
+    if data_available is False:
+        return {
+            "overall_market_risk_level": "insufficient_data",
+            "risk_score": 0.0,
+            "sufficient_data": False,
+            "data_available": False,
+            "risks": [],
+            "identified_risk_flags": ["Insufficient data to evaluate market risk indicators."],
+            "provenance": [],
+        }
+
     risks: list[dict[str, Any]] = []
     overall_risk_score = 0.0
 
     # 1. high_competitor_density
-    if competition_density > HIGH_COMPETITOR_DENSITY_THRESHOLD:
-        severity = (
-            "high" if competition_density >= VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD else "medium"
-        )
+    if comp_density > HIGH_COMPETITOR_DENSITY_THRESHOLD:
+        severity = "high" if comp_density >= VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD else "medium"
         score_add = 3.0 if severity == "high" else 2.0
         overall_risk_score += score_add
         risks.append(
             {
                 "risk_type": "high_competitor_density",
                 "severity": severity,
-                "evidence": f"Competitor density of {competition_density:.2f} competitors/km² exceeds the threshold of {HIGH_COMPETITOR_DENSITY_THRESHOLD:.1f}/km².",
+                "evidence": f"Competitor density of {comp_density:.2f} competitors/km² exceeds the threshold of {HIGH_COMPETITOR_DENSITY_THRESHOLD:.1f}/km².",
                 "source": "Normalized Business Registry",
-                "value": _safe_value(round(competition_density, 2)),
+                "value": _safe_value(round(comp_density, 2)),
             }
         )
 
@@ -282,15 +311,15 @@ def assess_market_risks(
         )
 
     # 7. low_demographic_demand
-    if 0 < population_reach < LOW_DEMOGRAPHIC_DEMAND_THRESHOLD:
+    if 0 < pop_reach < LOW_DEMOGRAPHIC_DEMAND_THRESHOLD:
         overall_risk_score += 2.0
         risks.append(
             {
                 "risk_type": "low_demographic_demand",
                 "severity": "medium",
-                "evidence": f"Total population reach within radius is {population_reach} (below {LOW_DEMOGRAPHIC_DEMAND_THRESHOLD:,} threshold for viable local demand).",
+                "evidence": f"Total population reach within radius is {pop_reach} (below {LOW_DEMOGRAPHIC_DEMAND_THRESHOLD:,} threshold for viable local demand).",
                 "source": "Census Population Data",
-                "value": _safe_value(population_reach),
+                "value": _safe_value(pop_reach),
             }
         )
 
@@ -327,6 +356,8 @@ def assess_market_risks(
     return {
         "overall_market_risk_level": risk_level,
         "risk_score": risk_score_capped,
+        "sufficient_data": True,
+        "data_available": True,
         "risks": risks,
         "identified_risk_flags": identified_flags,
         "provenance": provenance,

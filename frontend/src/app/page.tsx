@@ -15,8 +15,12 @@ import {
   Sparkles,
   Store,
 } from "lucide-react";
+import LanguageSwitcher from "@/components/ui/LanguageSwitcher";
+import { useLanguageStore } from "@/stores/languageStore";
 
 export default function HomePage() {
+  const t = useLanguageStore((s) => s.t);
+
   return (
     <main className="min-h-screen bg-white text-slate-900">
       {/* ================= NAVBAR ================= */}
@@ -39,28 +43,30 @@ export default function HomePage() {
               href="#how-it-works"
               className="text-sm font-medium text-slate-700 transition hover:text-indigo-600"
             >
-              How It Works
+              {t('nav.howItWorks')}
             </a>
 
             <a
               href="#features"
               className="text-sm font-medium text-slate-700 transition hover:text-indigo-600"
             >
-              Features
+              {t('nav.features')}
             </a>
 
             <a
               href="#why"
               className="text-sm font-medium text-slate-700 transition hover:text-indigo-600"
             >
-              Why UdyamAI
+              {t('nav.why')}
             </a>
+
+            <LanguageSwitcher compact />
 
             <Link
               href="/login"
               className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:bg-indigo-700"
             >
-              Get Started
+              {t('nav.getStarted')}
               <ArrowRight className="ml-2 inline h-4 w-4" />
             </Link>
           </div>
@@ -79,28 +85,26 @@ export default function HomePage() {
             {/* Badge */}
             <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50/70 px-4 py-2 text-sm font-medium text-indigo-600">
               <Sparkles className="h-4 w-4" />
-              AI-powered business guidance
+              {t('home.badge')}
             </div>
 
             {/* Heading */}
             <h1 className="max-w-[650px] text-5xl font-extrabold leading-[1.05] tracking-[-0.035em] text-slate-950 sm:text-6xl lg:text-[68px]">
-              Turn your business
+              {t('home.heroLine1')}
               <br />
-              idea into a{" "}
+              {t('home.heroLine2')}{" "}
               <span className="bg-gradient-to-r from-indigo-500 to-blue-500 bg-clip-text text-transparent">
-                smarter
+                {t('home.heroSmarter')}
               </span>
               <br />
               <span className="bg-gradient-to-r from-indigo-500 to-blue-500 bg-clip-text text-transparent">
-                decision.
+                {t('home.heroDecision')}
               </span>
             </h1>
 
             {/* Description */}
             <p className="mt-7 max-w-[650px] text-lg leading-8 text-slate-600">
-              UdyamAI helps entrepreneurs evaluate business feasibility,
-              understand financial requirements, and discover relevant
-              government schemes based on their location and business choice.
+              {t('home.heroDesc')}
             </p>
 
             {/* Buttons */}
@@ -109,7 +113,7 @@ export default function HomePage() {
     href="/login"
     className="inline-flex items-center rounded-xl bg-slate-950 px-7 py-4 font-semibold text-white shadow-xl shadow-indigo-900/10 transition hover:-translate-y-0.5 hover:bg-indigo-700"
   >
-    Start Analysis
+    {t('home.startAnalysis')}
     <ArrowRight className="ml-2 h-5 w-5" />
   </Link>
 </div>
@@ -118,17 +122,17 @@ export default function HomePage() {
             <div className="mt-8 flex flex-wrap gap-x-7 gap-y-3 text-sm text-slate-600">
               <span className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-indigo-500" />
-                Location-aware
+                {t('home.locationAware')}
               </span>
 
               <span className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-emerald-500" />
-                AI-assisted
+                {t('home.aiAssisted')}
               </span>
 
               <span className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-orange-500" />
-                Scheme discovery
+                {t('home.schemeDiscovery')}
               </span>
             </div>
           </div>
@@ -142,11 +146,11 @@ export default function HomePage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-slate-500">
-                    Business feasibility
+                    {t('home.cardFeasibility')}
                   </p>
 
                   <h2 className="mt-2 text-2xl font-bold text-slate-950">
-                    Your Business Analysis
+                    {t('home.cardAnalysis')}
                   </h2>
                 </div>
 
@@ -166,9 +170,9 @@ export default function HomePage() {
                   </div>
 
                   <div>
-                    <p className="text-sm text-slate-500">Location</p>
+                    <p className="text-sm text-slate-500">{t('home.cardLocation')}</p>
                     <p className="mt-1 font-semibold text-slate-900">
-                      Your selected area
+                      {t('home.cardSelectedArea')}
                     </p>
                   </div>
                 </div>
@@ -182,7 +186,7 @@ export default function HomePage() {
                   </div>
 
                   <div>
-                    <p className="text-sm text-slate-500">Investment</p>
+                    <p className="text-sm text-slate-500">{t('home.cardInvestment')}</p>
                     <p className="mt-1 font-semibold text-slate-900">
                       ₹5,00,000
                     </p>
@@ -199,10 +203,10 @@ export default function HomePage() {
 
                   <div>
                     <p className="text-sm text-slate-500">
-                      AI Recommendation
+                      {t('home.cardRecommendation')}
                     </p>
                     <p className="mt-1 font-semibold text-emerald-600">
-                      Strong business potential
+                      {t('home.cardPotential')}
                     </p>
                   </div>
                 </div>
@@ -220,16 +224,15 @@ export default function HomePage() {
         <div className="mx-auto max-w-[1150px]">
           <div className="text-center">
             <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600">
-              Simple process
+              {t('home.processBadge')}
             </span>
 
             <h2 className="mt-5 text-4xl font-bold tracking-tight text-slate-950">
-              How it works
+              {t('home.howTitle')}
             </h2>
 
             <p className="mx-auto mt-4 max-w-2xl text-slate-600">
-              Provide a few details and let UdyamAI turn them into actionable
-              business insights.
+              {t('home.howDesc')}
             </p>
           </div>
 
@@ -237,8 +240,8 @@ export default function HomePage() {
             <Step
               number="01"
               icon={<MapPin className="h-8 w-8" />}
-              title="Tell us your location"
-              description="Select your district, taluka/block, and village."
+              title={t('home.step1Title')}
+              description={t('home.step1Desc')}
               iconClass="bg-indigo-50 text-indigo-600"
               numberClass="text-indigo-600"
             />
@@ -246,8 +249,8 @@ export default function HomePage() {
             <Step
               number="02"
               icon={<Store className="h-8 w-8" />}
-              title="Choose your business"
-              description="Select the business category you want to analyze."
+              title={t('home.step2Title')}
+              description={t('home.step2Desc')}
               iconClass="bg-emerald-50 text-emerald-600"
               numberClass="text-emerald-600"
             />
@@ -255,8 +258,8 @@ export default function HomePage() {
             <Step
               number="03"
               icon={<CircleDollarSign className="h-8 w-8" />}
-              title="Enter your capital"
-              description="Provide the financial information needed for the analysis."
+              title={t('home.step3Title')}
+              description={t('home.step3Desc')}
               iconClass="bg-orange-50 text-orange-500"
               numberClass="text-orange-500"
             />
@@ -264,8 +267,8 @@ export default function HomePage() {
             <Step
               number="04"
               icon={<Bot className="h-8 w-8" />}
-              title="Get your insights"
-              description="Receive feasibility insights and relevant scheme recommendations."
+              title={t('home.step4Title')}
+              description={t('home.step4Desc')}
               iconClass="bg-blue-50 text-blue-600"
               numberClass="text-blue-600"
             />
@@ -281,11 +284,11 @@ export default function HomePage() {
         <div className="mx-auto max-w-[1150px]">
           <div className="text-center">
             <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600">
-              Built for entrepreneurs
+              {t('home.featuresBadge')}
             </span>
 
             <h2 className="mt-5 text-4xl font-bold tracking-tight text-slate-950">
-              Everything you need to make a better decision
+              {t('home.featuresTitle')}
             </h2>
           </div>
 
@@ -293,22 +296,22 @@ export default function HomePage() {
             <FeatureCard
               icon={<LineChart className="h-7 w-7" />}
               iconClass="bg-indigo-50 text-indigo-600"
-              title="Business Feasibility"
-              description="Understand whether your selected business is suitable based on available inputs and local factors."
+              title={t('home.feat1Title')}
+              description={t('home.feat1Desc')}
             />
 
             <FeatureCard
               icon={<CircleDollarSign className="h-7 w-7" />}
               iconClass="bg-emerald-50 text-emerald-600"
-              title="Financial Guidance"
-              description="Get a clearer picture of investment requirements and financial considerations."
+              title={t('home.feat2Title')}
+              description={t('home.feat2Desc')}
             />
 
             <FeatureCard
               icon={<Building2 className="h-7 w-7" />}
               iconClass="bg-orange-50 text-orange-500"
-              title="Government Schemes"
-              description="Discover schemes that may be relevant to your business and location."
+              title={t('home.feat3Title')}
+              description={t('home.feat3Desc')}
             />
           </div>
         </div>
@@ -319,20 +322,20 @@ export default function HomePage() {
         <div className="mx-auto grid max-w-[1150px] gap-10 md:grid-cols-3">
           <WhyCard
             icon={<MapPin className="h-6 w-6" />}
-            title="Location-aware"
-            description="Recommendations consider your local business environment."
+            title={t('home.why1Title')}
+            description={t('home.why1Desc')}
           />
 
           <WhyCard
             icon={<Bot className="h-6 w-6" />}
-            title="AI-assisted"
-            description="Turn business information into practical insights."
+            title={t('home.why2Title')}
+            description={t('home.why2Desc')}
           />
 
           <WhyCard
             icon={<ShieldCheck className="h-6 w-6" />}
-            title="Action-oriented"
-            description="Move from an idea to a clearer business decision."
+            title={t('home.why3Title')}
+            description={t('home.why3Desc')}
           />
         </div>
       </section>
@@ -353,16 +356,15 @@ export default function HomePage() {
 
             <div className="max-w-xl">
               <p className="mb-2 text-sm font-medium text-indigo-200">
-                Ready to evaluate your business idea?
+                {t('home.ctaEyebrow')}
               </p>
 
               <h2 className="text-3xl font-bold">
-                Start your analysis today
+                {t('home.ctaTitle')}
               </h2>
 
               <p className="mt-3 leading-7 text-slate-300">
-                Get AI-powered insights and take the right first step towards
-                your successful business journey.
+                {t('home.ctaDesc')}
               </p>
             </div>
 
@@ -370,7 +372,7 @@ export default function HomePage() {
               href="/login"
               className="shrink-0 rounded-xl bg-white px-8 py-4 font-semibold text-slate-900 shadow-xl transition hover:-translate-y-0.5 hover:bg-indigo-50"
             >
-              Start Your Analysis
+              {t('home.ctaButton')}
               <ArrowRight className="ml-2 inline h-5 w-5" />
             </Link>
           </div>
@@ -384,9 +386,9 @@ export default function HomePage() {
             Udyam<span className="text-indigo-500">AI</span>
           </div>
 
-          <p>AI-Powered Business Feasibility & Scheme Advisor</p>
+          <p>{t('home.footerTagline')}</p>
 
-          <p>© 2026 UdyamAI. All rights reserved.</p>
+          <p>{t('home.footerCopy')}</p>
         </div>
       </footer>
     </main>

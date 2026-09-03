@@ -6,6 +6,7 @@ Zero LLM calls are made during score calculations.
 """
 
 import os
+from typing import Any
 
 # ------------------------------------------------------------------ #
 # Configurable Scoring Weights (Must sum to 1.0)
@@ -23,30 +24,37 @@ def calculate_market_score(
     household_reach: int = 0,
     nearest_market_distance_km: float | None = None,
     nearby_markets_count: int = 0,
+    data_available: bool = True,
 ) -> float:
     """Calculate deterministic market score (0.0 to 100.0)."""
+    if not data_available:
+        return 0.0
+
     pop = max(0, int(population_reach or 0))
     hh = max(0, int(household_reach or 0))
 
-    # Population reach component (max 40 pts, benchmark 20,000 population)
-    pop_score = min(40.0, (pop / 20000.0) * 40.0)
+    if pop == 0 and hh == 0 and nearby_markets_count <= 0 and nearest_market_distance_km is None:
+        return 0.0
 
-    # Household reach component (max 30 pts, benchmark 4,000 households)
-    hh_score = min(30.0, (hh / 4000.0) * 30.0)
+    # Population reach component (max 40 pts, benchmark 25,000 population)
+    pop_score = min(40.0, (pop / 25000.0) * 40.0)
+
+    # Household reach component (max 30 pts, benchmark 5,000 households)
+    hh_score = min(30.0, (hh / 5000.0) * 30.0)
 
     # Market access & proximity component (max 30 pts)
     if nearby_markets_count <= 0:
-        access_score = 5.0
+        access_score = 0.0
     elif nearest_market_distance_km is not None:
         dist = float(nearest_market_distance_km)
         if dist <= 5.0:
             access_score = 30.0
         elif dist <= 15.0:
-            access_score = 20.0
+            access_score = 22.0
         elif dist <= 30.0:
-            access_score = 10.0
+            access_score = 14.0
         else:
-            access_score = 5.0
+            access_score = 8.0
     else:
         access_score = 15.0
 
@@ -58,14 +66,18 @@ def calculate_financial_score(
     available_capital: float = 0.0,
     desired_project_cost: float = 0.0,
     estimated_subsidy: float = 0.0,
+    data_available: bool = True,
 ) -> float:
     """Calculate deterministic financial score (0.0 to 100.0)."""
+    if not data_available:
+        return 0.0
+
     cap = max(0.0, float(available_capital or 0.0))
     cost = max(0.0, float(desired_project_cost or 0.0))
     sub = max(0.0, float(estimated_subsidy or 0.0))
 
     if cost <= 0.0:
-        return 50.0
+        return 0.0
 
     equity_ratio = cap / cost
 
@@ -81,16 +93,37 @@ def calculate_financial_score(
     return round(min(100.0, max(0.0, score)), 1)
 
 
-def calculate_competition_score(competition_density: float = 0.0) -> float:
+def calculate_competition_score(
+    competition_density: float = 0.0,
+    competitor_count: int | None = None,
+    data_available: bool = True,
+) -> float:
     """Calculate deterministic competition score (0.0 to 100.0).
 
-    Inversely proportional to competitor density:
-    - 0.0 competitors/km² -> 100.0
-    - <= 2.0 competitors/km² -> 85.0
-    - <= 5.0 competitors/km² -> 65.0
-    - <= 10.0 competitors/km² -> 40.0
-    - > 10.0 competitors/km² -> 15.0
+    Higher score indicates higher safety margin / lower competitive saturation.
+    When data_available is False (no business records found in radius), returns 0.0.
+    When data_available is True and measured competitors is 0, returns high safety score.
     """
+    if not data_available:
+        return 0.0
+
+    if competitor_count is not None:
+        count = max(0, int(competitor_count))
+        if count == 0:
+            return 95.0
+        elif count == 1:
+            return 85.0
+        elif count == 2:
+            return 75.0
+        elif count == 3:
+            return 65.0
+        elif count <= 5:
+            return round(55.0 - (count - 4) * 6.0, 1)
+        elif count <= 10:
+            return round(max(30.0, 48.0 - (count - 6) * 3.5), 1)
+        else:
+            return round(max(15.0, 30.0 - (count - 10) * 1.5), 1)
+
     density = max(0.0, float(competition_density or 0.0))
     if density <= 0.0:
         return 100.0
@@ -106,8 +139,14 @@ def calculate_competition_score(competition_density: float = 0.0) -> float:
     return round(min(100.0, max(0.0, score)), 1)
 
 
-def calculate_infrastructure_score(facility_counts: dict[str, int] | None = None) -> float:
+def calculate_infrastructure_score(
+    facility_counts: dict[str, int] | None = None,
+    data_available: bool = True,
+) -> float:
     """Calculate deterministic infrastructure score (0.0 to 100.0)."""
+    if not data_available:
+        return 0.0
+
     if not isinstance(facility_counts, dict):
         facility_counts = {}
 
@@ -134,12 +173,19 @@ def calculate_infrastructure_score(facility_counts: dict[str, int] | None = None
     return round(min(100.0, max(0.0, score)), 1)
 
 
-def calculate_risk_safety_score(engine_risk_score: float = 0.0) -> float:
+def calculate_risk_safety_score(
+    engine_risk_score: float = 0.0,
+    data_available: bool = True,
+) -> float:
     """Calculate deterministic risk safety score (0.0 to 100.0).
 
     Engine risk score is on 0.0 to 10.0 scale (higher = riskier).
     Risk safety score inverts this scale: 0.0 risk = 100.0 safety.
+    When data_available is False, returns 0.0 (unsupported safety).
     """
+    if not data_available:
+        return 0.0
+
     risk = max(0.0, float(engine_risk_score or 0.0))
     safety = 100.0 - (min(10.0, risk) * 10.0)
     return round(safety, 1)
@@ -156,8 +202,14 @@ def calculate_feasibility_scores(
     competition_density: float = 0.0,
     facility_counts: dict[str, int] | None = None,
     engine_risk_score: float = 0.0,
-) -> dict[str, float]:
-    """Calculate all sub-scores and deterministic overall feasibility score.
+    competitor_count: int | None = None,
+    market_data_available: bool = True,
+    financial_data_available: bool | None = None,
+    competition_data_available: bool = True,
+    infrastructure_data_available: bool = True,
+    risk_data_available: bool = True,
+) -> dict[str, Any]:
+    """Calculate all sub-scores, data confidence, and deterministic overall feasibility score.
 
     Returns:
         Dict containing:
@@ -167,21 +219,59 @@ def calculate_feasibility_scores(
         - infrastructure_score (0.0 - 100.0)
         - risk_score (0.0 - 100.0)
         - overall_score (0.0 - 100.0)
+        - market_data_available (bool)
+        - financial_data_available (bool)
+        - competition_data_available (bool)
+        - infrastructure_data_available (bool)
+        - risk_data_available (bool)
+        - data_confidence (str: 'high', 'medium', 'low', 'insufficient')
     """
+    if financial_data_available is None:
+        financial_data_available = float(desired_project_cost or 0.0) > 0.0
+
     mkt_s = calculate_market_score(
         population_reach=population_reach,
         household_reach=household_reach,
         nearest_market_distance_km=nearest_market_distance_km,
         nearby_markets_count=nearby_markets_count,
+        data_available=market_data_available,
     )
     fin_s = calculate_financial_score(
         available_capital=available_capital,
         desired_project_cost=desired_project_cost,
         estimated_subsidy=estimated_subsidy,
+        data_available=financial_data_available,
     )
-    comp_s = calculate_competition_score(competition_density=competition_density)
-    infra_s = calculate_infrastructure_score(facility_counts=facility_counts)
-    risk_s = calculate_risk_safety_score(engine_risk_score=engine_risk_score)
+    comp_s = calculate_competition_score(
+        competition_density=competition_density,
+        competitor_count=competitor_count,
+        data_available=competition_data_available,
+    )
+    infra_s = calculate_infrastructure_score(
+        facility_counts=facility_counts,
+        data_available=infrastructure_data_available,
+    )
+    risk_s = calculate_risk_safety_score(
+        engine_risk_score=engine_risk_score,
+        data_available=risk_data_available,
+    )
+
+    available_flags = [
+        market_data_available,
+        financial_data_available,
+        competition_data_available,
+        infrastructure_data_available,
+        risk_data_available,
+    ]
+    available_count = sum(1 for f in available_flags if f)
+    if available_count == 5:
+        data_confidence = "high"
+    elif available_count >= 3:
+        data_confidence = "medium"
+    elif available_count >= 1:
+        data_confidence = "low"
+    else:
+        data_confidence = "insufficient"
 
     overall = round(
         (mkt_s * MARKET_WEIGHT)
@@ -199,4 +289,10 @@ def calculate_feasibility_scores(
         "infrastructure_score": infra_s,
         "risk_score": risk_s,
         "overall_score": min(100.0, max(0.0, overall)),
+        "market_data_available": market_data_available,
+        "financial_data_available": financial_data_available,
+        "competition_data_available": competition_data_available,
+        "infrastructure_data_available": infrastructure_data_available,
+        "risk_data_available": risk_data_available,
+        "data_confidence": data_confidence,
     }
