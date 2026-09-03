@@ -146,11 +146,13 @@ def _persist_new(db, record) -> UUID:
     persisted by the pipeline's end-of-file commit; outside one the commit is
     kept so standalone callers still see the record immediately.
     """
+    # No refresh after flush: id and created_at are client-side defaults, so
+    # the id is already populated — and refresh() inside a savepoint can fail
+    # on some servers once the outer transaction is long-lived.
     db.add(record)
     db.flush()
     if not _in_savepoint(db):
         db.commit()
-    db.refresh(record)
     return record.id
 
 

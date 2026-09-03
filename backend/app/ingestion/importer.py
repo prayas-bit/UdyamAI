@@ -528,8 +528,7 @@ def _resolve_market(
         source_url=prov.source_url,
     )
     db.add(market)
-    db.flush()  # populate ID without committing — final commit in run_import()
-    db.refresh(market)
+    db.flush()  # populate ID (client-side default) — final commit in run_import()
     _store_lookup(report, cache_key, market.id)
     report.warnings.append(f"created market: {row.market_name}")
     return market
@@ -639,8 +638,7 @@ def _resolve_category(
         )
     category = BusinessCategory(name=row.category_name)
     db.add(category)
-    db.flush()  # populate ID without committing — final commit in run_import()
-    db.refresh(category)
+    db.flush()  # populate ID (client-side default) — final commit in run_import()
     _store_lookup(report, cache_key, category.id)
     report.warnings.append(f"created business category: {row.category_name}")
     return category
