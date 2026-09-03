@@ -275,12 +275,15 @@ class AnalysisOrchestrator:
             # -------------------------------------------------------------
             # Step 9: Run feasibility
             # -------------------------------------------------------------
+            est_subsidy_val = getattr(financial_calc, "potential_subsidy", 0.0) or 0.0
             feasibility_score_res = FeasibilityService.calculate_feasibility(
                 db,
                 village_id=village.id,
                 business_category_id=category.id,
                 available_capital=avail_cap,
                 desired_project_cost=desired_cost,
+                estimated_subsidy=est_subsidy_val,
+                matched_schemes=db_scheme_matches,
             )
 
             # -------------------------------------------------------------
@@ -313,14 +316,21 @@ class AnalysisOrchestrator:
                 mkt_indicators.get("pricing", {}) if isinstance(mkt_indicators, dict) else {}
             )
 
+            demand_score_val = demand_info.get("demand_score")
+            if demand_score_val is not None:
+                _ds = float(demand_score_val)
+                _demand_level = "High" if _ds >= 70 else ("Moderate" if _ds >= 40 else "Low")
+            else:
+                _demand_level = None
+
             mkt_context = MarketContext(
                 population_estimate=pop_est,
                 household_estimate=hh_est,
                 market_reach_estimate=target_est,
                 radius_km=10.0,
                 demand_indicators={
-                    "score": demand_info.get("demand_score"),
-                    "level": demand_info.get("demand_level"),
+                    "score": demand_score_val,
+                    "level": _demand_level,
                     "growth_rate": demand_info.get("growth_rate"),
                 },
                 pricing_indicators={
@@ -331,6 +341,8 @@ class AnalysisOrchestrator:
             )
 
             comp_cnt = _get_comp_count(competition_res)
+            raw_comp_conf = getattr(competition_res, "data_confidence", None)
+            comp_conf = str(raw_comp_conf) if isinstance(raw_comp_conf, str) else None
 
             comp_context = CompetitionContext(
                 competitor_count=comp_cnt,
@@ -341,6 +353,7 @@ class AnalysisOrchestrator:
                     competition_res, "total_businesses_in_radius", 0
                 ),
                 target_category=getattr(category, "name", None) if category else None,
+                data_confidence=comp_conf,
             )
 
             scheme_contexts = []
@@ -361,6 +374,35 @@ class AnalysisOrchestrator:
                         )
                     )
 
+            raw_feas_conf = getattr(feasibility_score_res, "data_confidence", None)
+            feas_conf = str(raw_feas_conf) if isinstance(raw_feas_conf, str) else "high"
+
+            mkt_avail = (
+                getattr(feasibility_score_res, "market_data_available")
+                if isinstance(getattr(feasibility_score_res, "market_data_available", None), bool)
+                else True
+            )
+            fin_avail = (
+                getattr(feasibility_score_res, "financial_data_available")
+                if isinstance(getattr(feasibility_score_res, "financial_data_available", None), bool)
+                else True
+            )
+            comp_avail = (
+                getattr(feasibility_score_res, "competition_data_available")
+                if isinstance(getattr(feasibility_score_res, "competition_data_available", None), bool)
+                else True
+            )
+            infra_avail = (
+                getattr(feasibility_score_res, "infrastructure_data_available")
+                if isinstance(getattr(feasibility_score_res, "infrastructure_data_available", None), bool)
+                else True
+            )
+            risk_avail = (
+                getattr(feasibility_score_res, "risk_data_available")
+                if isinstance(getattr(feasibility_score_res, "risk_data_available", None), bool)
+                else True
+            )
+
             feasibility_context = FeasibilityContext(
                 overall_score=feasibility_score_res.overall_score,
                 market_score=feasibility_score_res.market_score,
@@ -369,6 +411,13 @@ class AnalysisOrchestrator:
                 infrastructure_score=feasibility_score_res.infrastructure_score,
                 risk_score=feasibility_score_res.risk_score,
                 swot=feasibility_score_res.swot,
+                confidence=feas_conf,
+                data_confidence=feas_conf,
+                market_data_available=mkt_avail,
+                financial_data_available=fin_avail,
+                competition_data_available=comp_avail,
+                infrastructure_data_available=infra_avail,
+                risk_data_available=risk_avail,
             )
 
             # Safely extract optional language property with default fallback and validation guard
@@ -466,7 +515,7 @@ class AnalysisOrchestrator:
                         getattr(feasibility_score_res.swot, "threat_indicators", []),
                     )
                 },
-                confidence=ai_advice.confidence,
+                confidence=feasibility_score_res.data_confidence or ai_advice.confidence,
                 scoring_version="v1.0",
             )
             db.add(db_feasibility)
@@ -511,8 +560,8 @@ class AnalysisOrchestrator:
                 market_reach_estimate=target_est,
                 competitor_count=comp_cnt,
                 demand_indicators={
-                    "score": demand_info.get("demand_score"),
-                    "level": demand_info.get("demand_level"),
+                    "score": demand_score_val,
+                    "level": _demand_level,
                 },
                 pricing_indicators={"average_price": pricing_info.get("average_market_price")},
                 data_confidence=ai_advice.confidence,

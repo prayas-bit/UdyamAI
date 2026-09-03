@@ -110,18 +110,59 @@ def _build_risks_payload(ai_data: dict, feas_rec: FeasibilityAnalysis | None) ->
     if isinstance(raw_ai_risks, dict):
         raw_ai_risks = raw_ai_risks.get("risks", [])
 
+    # Collect AI financial advice for mitigation suggestions
+    financial_advice_list: list[str] = []
+    if ai_data:
+        pricing_strategy = ai_data.get("pricing_strategy")
+        if isinstance(pricing_strategy, dict):
+            financial_advice_list = pricing_strategy.get("financial_advice", []) or []
+        if not financial_advice_list:
+            financial_advice_list = ai_data.get("financial_advice", []) or []
+
+    def _suggest_mitigation(risk_text: str, category: str) -> str:
+        """Generate a context-aware mitigation suggestion from available AI advice."""
+        risk_lower = risk_text.lower()
+        # Try to match AI financial advice to the risk
+        for advice in financial_advice_list:
+            if any(
+                keyword in risk_lower
+                for keyword in ("seasonal", "supply", "volatility", "crop", "harvest")
+            ) and any(
+                keyword in advice.lower()
+                for keyword in ("buffer", "working.capital", "reserve", "seasonal")
+            ):
+                return advice
+            if any(
+                keyword in risk_lower
+                for keyword in ("subsidy", "eligibility", "scheme", "documents")
+            ) and any(
+                keyword in advice.lower()
+                for keyword in ("subsidy", "scheme", "eligibility", "document")
+            ):
+                return advice
+        # Fallback: generic mitigation based on category
+        if "financial" in category.lower() or "cash" in risk_lower:
+            return "Maintain adequate working capital reserves and monitor cash flow monthly."
+        if "market" in category.lower() or "demand" in risk_lower:
+            return "Diversify customer base and monitor local demand indicators regularly."
+        if "competition" in category.lower() or "competitor" in risk_lower:
+            return "Differentiate service quality and build customer loyalty programs."
+        if "seasonal" in risk_lower or "supply" in risk_lower:
+            return "Maintain working-capital buffers and diversify supply sources across seasons."
+        return f"Monitor this risk factor and review with financial advisor before committing."
+
     if isinstance(raw_ai_risks, list):
         for item in raw_ai_risks:
             if isinstance(item, str) and item.strip() and not _is_ai_unavailable_text(item):
                 risks_data.append(
-                    {
-                        "risk_factor": item,
-                        "factor": item,
-                        "category": "Operational & Market Risk",
-                        "level": "Medium",
-                        "mitigation": "Establish direct supplier contracts, enforce quality control protocols, and maintain a 15-day emergency operational buffer.",
-                    }
-                )
+                {
+                    "risk_factor": item,
+                    "factor": item,
+                    "category": "Operational & Market Risk",
+                    "level": "Medium",
+                    "mitigation": _suggest_mitigation(item, "Operational & Market Risk"),
+                }
+            )
             elif isinstance(item, dict):
                 factor = (
                     item.get("risk_factor")
@@ -139,7 +180,7 @@ def _build_risks_payload(ai_data: dict, feas_rec: FeasibilityAnalysis | None) ->
                         "level": item.get("level") or item.get("severity") or "Medium",
                         "mitigation": item.get("mitigation")
                         or item.get("evidence")
-                        or "Implement risk control protocol and maintain contingency reserve.",
+                        or _suggest_mitigation(str(factor), item.get("category") or "Operating Risk"),
                     }
                 )
 
@@ -153,7 +194,7 @@ def _build_risks_payload(ai_data: dict, feas_rec: FeasibilityAnalysis | None) ->
                     "factor": threat[:60],
                     "category": "Market & Enterprise Risk",
                     "level": "Medium" if idx < len(threat_items) else "Low",
-                    "mitigation": "Monitor this factor monthly, maintain contingency reserves, and align operations with matched subsidy scheme requirements.",
+                    "mitigation": _suggest_mitigation(threat, "Market & Enterprise Risk"),
                 }
             )
 
@@ -299,6 +340,8 @@ class AnalysisService:
                 "village_name": village.name,
                 "taluka_name": taluka.name if taluka else None,
                 "district_name": district.name if district else None,
+                "latitude": village.latitude,
+                "longitude": village.longitude,
             }
             if village
             else {}
@@ -333,6 +376,16 @@ class AnalysisService:
                 "calculated_loan": fin_rec.calculated_loan,
                 "monthly_emi": fin_rec.monthly_emi,
                 "total_interest": fin_rec.total_interest,
+                "total_repayment": fin_rec.total_repayment,
+                "working_capital": fin_rec.working_capital,
+                "monthly_revenue": fin_rec.monthly_revenue,
+                "monthly_operating_cost": fin_rec.monthly_operating_cost,
+                "monthly_profit": fin_rec.monthly_profit,
+                "break_even_months": fin_rec.break_even_months,
+                "repayment_capacity": fin_rec.repayment_capacity,
+                "interest_rate": fin_rec.interest_rate,
+                "tenure_months": fin_rec.tenure_months,
+                "margin_gap": fin_rec.margin_gap,
             }
             if fin_rec
             else {"available_capital": db_run.available_capital}
@@ -370,6 +423,7 @@ class AnalysisService:
         # Scheme matches
         matches = db.exec(select(SchemeMatch).where(SchemeMatch.analysis_run_id == run_id)).all()
         schemes_data = []
+        max_subsidy_est = 0.0
         for m in matches:
             sch_obj = db.get(Scheme, m.scheme_id) if m.scheme_id else None
             s_name = (
@@ -385,6 +439,8 @@ class AnalysisService:
 
             proj_cost = m.estimated_project_cost or 0
             sub_est = estimate_subsidy_for_match(db, m.scheme_id, proj_cost) if m.scheme_id else 0.0
+            if sub_est > max_subsidy_est:
+                max_subsidy_est = sub_est
 
             schemes_data.append(
                 {
@@ -404,6 +460,52 @@ class AnalysisService:
                     "matched_conditions": m.matched_conditions or {},
                 }
             )
+
+        # ------------------------------------------------------------------
+        # Enrich fin_data with market-derived estimates when DB values are missing
+        # ------------------------------------------------------------------
+        feasible_cost = fin_data.get("feasible_project_cost") or 0.0
+        pricing = (mkt_data.get("pricing_indicators") or {})
+        target_customers = mkt_data.get("target_customers") or 0
+        avg_price = (
+            pricing.get("average_market_price")
+            or pricing.get("average_modal_price")
+            or pricing.get("average_price")
+        )
+
+        est_monthly_rev = fin_data.get("monthly_revenue")
+        if est_monthly_rev is None and feasible_cost > 0:
+            # Revenue estimate: target_customers * avg_price * purchase_freq * conversion
+            if target_customers > 0 and avg_price and avg_price > 0:
+                est_monthly_rev = round(target_customers * float(avg_price) * 0.3 * 4, 2)
+            else:
+                # Fallback: 20% of feasible project cost per month (micro-enterprise benchmark)
+                est_monthly_rev = round(feasible_cost * 0.20, 2)
+
+        est_monthly_cost = fin_data.get("monthly_operating_cost")
+        if est_monthly_cost is None and est_monthly_rev is not None:
+            # Operating cost ~60% of revenue (standard micro-enterprise ratio)
+            est_monthly_cost = round(est_monthly_rev * 0.60, 2)
+
+        est_monthly_profit = fin_data.get("monthly_profit")
+        if est_monthly_profit is None and est_monthly_rev is not None and est_monthly_cost is not None:
+            est_monthly_profit = round(est_monthly_rev - est_monthly_cost, 2)
+
+        est_break_even = fin_data.get("break_even_months")
+        if est_break_even is None and feasible_cost > 0 and est_monthly_profit and est_monthly_profit > 0:
+            est_break_even = round(feasible_cost / est_monthly_profit, 1)
+
+        est_repayment_capacity = fin_data.get("repayment_capacity")
+        est_emi = fin_data.get("monthly_emi") or 0.0
+        if est_repayment_capacity is None and est_monthly_rev is not None and est_emi > 0:
+            est_repayment_capacity = round((est_monthly_rev - (est_monthly_cost or 0.0)) / est_emi, 2)
+
+        fin_data["monthly_revenue"] = est_monthly_rev
+        fin_data["monthly_operating_cost"] = est_monthly_cost
+        fin_data["monthly_profit"] = est_monthly_profit
+        fin_data["break_even_months"] = est_break_even
+        fin_data["repayment_capacity"] = est_repayment_capacity
+        fin_data["subsidy_estimated"] = max_subsidy_est if max_subsidy_est > 0 else None
 
         # Feasibility analysis
         feas_rec = db.exec(

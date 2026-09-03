@@ -12,8 +12,42 @@ from app.feasibility.scorer import (
     calculate_risk_safety_score,
 )
 from app.feasibility.swot import build_swot_indicators
+from app.market.risks import assess_market_risks
 from app.schemas.feasibility import FeasibilityScoreResult
 from app.services.feasibility_service import FeasibilityService
+
+
+class TestMarketRisksSufficiency:
+    """Test data sufficiency handling in market risks assessment."""
+
+    def test_empty_inputs_trigger_insufficient_data(self):
+        """Empty empirical inputs produce insufficient_data level instead of artificial low risk."""
+        res = assess_market_risks(
+            competition_density=0.0,
+            facility_counts={},
+            population_reach=0,
+            nearby_markets_count=0,
+            nearest_market_distance_km=None,
+            data_available=False,
+        )
+        assert res["overall_market_risk_level"] == "insufficient_data"
+        assert res["sufficient_data"] is False
+        assert res["data_available"] is False
+        assert res["risk_score"] == 0.0
+        assert any("Insufficient data" in flag for flag in res["identified_risk_flags"])
+
+    def test_provided_inputs_evaluate_normally(self):
+        """Legitimate empirical inputs evaluate normally with sufficient_data=True."""
+        res = assess_market_risks(
+            competition_density=1.5,
+            facility_counts={"bank": 1},
+            population_reach=5000,
+            nearby_markets_count=2,
+            nearest_market_distance_km=4.0,
+        )
+        assert res["overall_market_risk_level"] in ("low", "medium", "high")
+        assert res["sufficient_data"] is True
+        assert res["data_available"] is True
 
 
 class TestFeasibilityScorerEngine:
@@ -55,14 +89,34 @@ class TestFeasibilityScorerEngine:
         )
         assert score_zero == 0.0
 
+        # Zero cost (insufficient data) returns 0.0 instead of 50.0
+        score_no_cost = calculate_financial_score(
+            available_capital=100000.0,
+            desired_project_cost=0.0,
+        )
+        assert score_no_cost == 0.0
+
+        # Explicit data_available=False
+        score_insufficient = calculate_financial_score(
+            available_capital=100000.0,
+            desired_project_cost=500000.0,
+            data_available=False,
+        )
+        assert score_insufficient == 0.0
+
     def test_competition_score_inversion(self):
         """Calculates competition score inversely proportional to competitor density."""
-        # Zero density = 100
-        assert calculate_competition_score(0.0) == 100.0
+        # When no business records exist in radius (data_available=False), returns 0.0
+        assert calculate_competition_score(0.0, data_available=False) == 0.0
+
+        # When data_available=True and measured competitors is 0
+        assert calculate_competition_score(0.0, data_available=True) == 100.0
+        assert calculate_competition_score(competitor_count=0, data_available=True) == 95.0
+
         # 2.0 density = 85.0
-        assert calculate_competition_score(2.0) == 85.0
+        assert calculate_competition_score(2.0, data_available=True) == 85.0
         # High density (12.0) = low score
-        assert calculate_competition_score(12.0) <= 35.0
+        assert calculate_competition_score(12.0, data_available=True) <= 35.0
 
     def test_infrastructure_score_calculation(self):
         """Calculates infrastructure score based on facility availability."""
@@ -74,14 +128,20 @@ class TestFeasibilityScorerEngine:
         score_empty = calculate_infrastructure_score(facility_counts={})
         assert score_empty == 0.0
 
+        score_insufficient = calculate_infrastructure_score(
+            facility_counts={"bank": 2}, data_available=False
+        )
+        assert score_insufficient == 0.0
+
     def test_risk_safety_score_inversion(self):
         """Inverts 0-10 risk engine score to 0-100 safety score."""
         assert calculate_risk_safety_score(0.0) == 100.0
         assert calculate_risk_safety_score(7.5) == 25.0
         assert calculate_risk_safety_score(10.0) == 0.0
+        assert calculate_risk_safety_score(0.0, data_available=False) == 0.0
 
     def test_calculate_feasibility_scores_combination(self):
-        """Computes all sub-scores and overall score."""
+        """Computes all sub-scores, data_confidence, and overall score."""
         scores = calculate_feasibility_scores(
             population_reach=15000,
             household_reach=3000,
@@ -101,7 +161,26 @@ class TestFeasibilityScorerEngine:
         assert "infrastructure_score" in scores
         assert "risk_score" in scores
         assert "overall_score" in scores
+        assert scores["data_confidence"] == "high"
+        assert scores["competition_data_available"] is True
         assert 0.0 <= scores["overall_score"] <= 100.0
+
+    def test_calculate_feasibility_scores_empty_data(self):
+        """Computes low/insufficient confidence when components have no empirical data."""
+        scores = calculate_feasibility_scores(
+            competition_data_available=False,
+            market_data_available=False,
+            infrastructure_data_available=False,
+            desired_project_cost=0.0,
+            risk_data_available=False,
+        )
+
+        assert scores["competition_score"] == 0.0
+        assert scores["market_score"] == 0.0
+        assert scores["financial_score"] == 0.0
+        assert scores["overall_score"] == 0.0
+        assert scores["data_confidence"] == "insufficient"
+        assert scores["competition_data_available"] is False
 
 
 class TestSWOTIndicatorBuilder:
@@ -131,13 +210,29 @@ class TestSWOTIndicatorBuilder:
         assert len(swot["opportunity_indicators"]) >= 1
         assert len(swot["threat_indicators"]) >= 1
 
+    def test_swot_indicators_insufficient_competition_data(self):
+        """Ensures missing competition data emits kicker instead of false strength."""
+        swot = build_swot_indicators(
+            competition_density=0.0,
+            competition_data_available=False,
+        )
+
+        strengths_str = " ".join(swot["strength_indicators"])
+        weaknesses_str = " ".join(swot["weakness_indicators"])
+
+        assert "Favorable competitive environment" not in strengths_str
+        assert "Early market entrant" not in " ".join(swot["opportunity_indicators"])
+        assert "Insufficient data to assess competition" in weaknesses_str
+
 
 class TestFeasibilityServiceOrchestration:
     """Test FeasibilityService orchestration."""
 
-    def test_calculate_feasibility_service(self):
+    def test_calculate_feasibility_service_empty_spatial(self):
         mock_db = MagicMock()
         mock_db.get.return_value = None
+        mock_db.exec.return_value.all.return_value = []
+        mock_db.exec.return_value.first.return_value = None
 
         with (
             patch("app.services.feasibility_service.find_nearby_businesses", return_value=[]),
@@ -155,8 +250,12 @@ class TestFeasibilityServiceOrchestration:
             )
 
             assert isinstance(res, FeasibilityScoreResult)
-            assert 0.0 <= res.overall_score <= 100.0
-            assert isinstance(res.swot.strength_indicators, list)
+            # Finding 0 competitors is valid data: low competition = high safety score
+            assert res.competition_score == 95.0
+            assert res.competition_data_available is True
+            assert res.data_confidence in ("low", "medium", "high")
+            assert any("Favorable competitive environment" in s for s in res.swot.strength_indicators)
+            assert not any("Insufficient data to assess competition" in w for w in res.swot.weakness_indicators)
 
 
 class TestFeasibilityAPIEndpoints:
