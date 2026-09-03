@@ -305,10 +305,29 @@ export interface DashboardOverviewData {
 }
 
 export async function getDashboardOverview(): Promise<DashboardOverviewData> {
-  const res = await apiFetch(`${API_BASE_URL}/api/v1/dashboard/overview`, {
-    headers: { Accept: 'application/json' },
-  });
-  if (!res.ok) throw new Error(`Failed to load dashboard overview (${res.status})`);
+  const url = `${API_BASE_URL}/api/v1/dashboard/overview`;
+  let res: Response;
+  try {
+    res = await apiFetch(url, {
+      headers: { Accept: 'application/json' },
+    });
+  } catch (err: any) {
+    console.error(`[getDashboardOverview] Network error connecting to ${url}:`, err);
+    throw new Error(`Failed to connect to backend (${url}): ${err?.message || 'Network error'}`);
+  }
+
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => '');
+    let detail = '';
+    try {
+      const parsed = JSON.parse(errorBody);
+      detail = parsed.detail || parsed.message || errorBody;
+    } catch {
+      detail = errorBody || res.statusText;
+    }
+    throw new Error(`Dashboard API error (${res.status}): ${detail}`);
+  }
+
   return res.json();
 }
 
