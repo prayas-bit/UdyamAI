@@ -1,3 +1,5 @@
+import { apiFetch } from './http';
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
@@ -219,9 +221,99 @@ export interface ConsolidatedAnalysisData {
   }>;
 }
 
+// ============================================================
+// PERSONAL DASHBOARD OVERVIEW
+// ============================================================
+
+export interface DashboardAnalysis {
+  id: string;
+  status: string;
+  created_at: string;
+  completed_at?: string | null;
+  business_category_name?: string | null;
+  village_name?: string | null;
+  taluka_name?: string | null;
+  district_name?: string | null;
+  overall_score?: number | null;
+}
+
+export interface DashboardScheme {
+  scheme_id: string;
+  name: string;
+  agency_name?: string | null;
+  match_status: string;
+  match_score?: number | null;
+  estimated_loan_amount?: number | null;
+  matched_analysis_run_id: string;
+  analyses_count: number;
+}
+
+export interface DashboardReport {
+  id: string;
+  analysis_run_id: string;
+  title?: string | null;
+  language?: string | null;
+  created_at: string;
+}
+
+export interface DashboardOverviewData {
+  analyses: DashboardAnalysis[];
+  schemes: DashboardScheme[];
+  reports: DashboardReport[];
+  finance: {
+    expenses: { count: number; total: number };
+    cash_flow: {
+      count: number;
+      total_income: number;
+      total_expenses: number;
+      net: number;
+    };
+    savings: {
+      goals: number;
+      total_saved: number;
+      total_target: number;
+      progress_percent: number;
+    };
+    budgets: {
+      count: number;
+      active: number;
+      total_income_target: number;
+      total_expense_target: number;
+    };
+    debts: {
+      count: number;
+      total_outstanding: number;
+      total_principal: number;
+      total_monthly_emi: number;
+    };
+    borrowings: {
+      count: number;
+      exploring: number;
+      applied: number;
+      approved: number;
+      total_requested: number;
+      total_approved: number;
+    };
+    credit: {
+      records: number;
+      latest_score: number | null;
+      latest_rating: string | null;
+    };
+    recycle_bin: { count: number };
+  };
+}
+
+export async function getDashboardOverview(): Promise<DashboardOverviewData> {
+  const res = await apiFetch(`${API_BASE_URL}/api/v1/dashboard/overview`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`Failed to load dashboard overview (${res.status})`);
+  return res.json();
+}
+
 export async function getDistricts(): Promise<District[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/locations/districts`);
+    const res = await apiFetch(`${API_BASE_URL}/api/v1/locations/districts`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -235,7 +327,7 @@ export async function getTalukas(districtId?: string): Promise<Taluka[]> {
     const url = districtId
       ? `${API_BASE_URL}/api/v1/locations/talukas?district_id=${districtId}`
       : `${API_BASE_URL}/api/v1/locations/talukas`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -249,7 +341,7 @@ export async function getVillages(talukaId?: string): Promise<Village[]> {
     const url = talukaId
       ? `${API_BASE_URL}/api/v1/locations/villages?taluka_id=${talukaId}`
       : `${API_BASE_URL}/api/v1/locations/villages`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -260,7 +352,7 @@ export async function getVillages(talukaId?: string): Promise<Village[]> {
 
 export async function getBusinessCategories(): Promise<BusinessCategory[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/business-categories`);
+    const res = await apiFetch(`${API_BASE_URL}/api/v1/business-categories`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -280,38 +372,48 @@ export async function startAnalysis(data: StartAnalysisRequest) {
     language: data.language || 'en',
   };
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/analysis`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/api/v1/analysis`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Analysis API error:', response.status, errorText);
-    throw new Error(
-      `Analysis submission failed (${response.status}): ${errorText}`
-    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Analysis API error:', response.status, errorText);
+      throw new Error(
+        `Analysis submission failed (${response.status}): ${errorText}`
+      );
+    }
+    return response.json();
+  } catch (err: any) {
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      throw new Error(
+        `Unable to reach the analysis server at ${API_BASE_URL}. ` +
+        'Please ensure the backend is running and try again.'
+      );
+    }
+    throw err;
   }
-  return response.json();
 }
 
 export async function getAnalysisStatus(analysisId: string) {
-  const res = await fetch(`${API_BASE_URL}/api/v1/analysis/${analysisId}/status`);
+  const res = await apiFetch(`${API_BASE_URL}/api/v1/analysis/${analysisId}/status`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 export async function getConsolidatedAnalysis(analysisId: string): Promise<ConsolidatedAnalysisData> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/analysis/${analysisId}/consolidated`);
+  const res = await apiFetch(`${API_BASE_URL}/api/v1/analysis/${analysisId}/consolidated`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 export async function downloadAnalysisPdf(analysisId: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/analysis/${analysisId}/report/pdf`);
+  const res = await apiFetch(`${API_BASE_URL}/api/v1/analysis/${analysisId}/report/pdf`);
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(errorText || `PDF download failed (${res.status})`);
@@ -346,7 +448,7 @@ export async function sendChatMessage(
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 90_000);
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/chat`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/v1/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, history, language }),
@@ -364,7 +466,7 @@ export async function sendChatMessage(
 
 export async function getSchemes() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/schemes`);
+    const res = await apiFetch(`${API_BASE_URL}/api/v1/schemes`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -399,7 +501,7 @@ export async function getNearbyMarkets(
   radiusKm = 25,
   marketType?: string,
 ): Promise<NearbyMarket[]> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE_URL}/api/v1/locations/nearby/markets?${buildGeoQuery(lat, lng, radiusKm, {
       market_type: marketType,
     })}`,
@@ -414,7 +516,7 @@ export async function getNearbyBusinesses(
   radiusKm = 10,
   categoryId?: string,
 ): Promise<NearbyBusiness[]> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE_URL}/api/v1/locations/nearby/businesses?${buildGeoQuery(lat, lng, radiusKm, {
       category_id: categoryId,
     })}`,
@@ -429,7 +531,7 @@ export async function getNearbyFacilities(
   radiusKm = 10,
   facilityType?: string,
 ): Promise<NearbyFacility[]> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE_URL}/api/v1/locations/nearby/facilities?${buildGeoQuery(lat, lng, radiusKm, {
       facility_type: facilityType,
     })}`,
@@ -443,7 +545,7 @@ export async function getNearbyVillages(
   lng: number,
   radiusKm = 10,
 ): Promise<NearbyVillage[]> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE_URL}/api/v1/locations/nearby/villages?${buildGeoQuery(lat, lng, radiusKm)}`,
   );
   if (!res.ok) throw new Error(`Failed to fetch nearby villages (${res.status})`);
@@ -457,7 +559,7 @@ export async function getVillageMarketAnalysis(
   const params = new URLSearchParams();
   if (categoryId) params.set('business_category_id', categoryId);
   const query = params.toString();
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE_URL}/api/v1/markets/analyze/${villageId}${query ? `?${query}` : ''}`,
   );
   if (!res.ok) throw new Error(`Failed to fetch village market analysis (${res.status})`);
@@ -469,3 +571,235 @@ function formatKm(meters: number): string {
 }
 
 export { formatKm };
+
+// ============================================================
+// FINCOMPASS FEATURE API FUNCTIONS
+// ============================================================
+
+const FIN_BASE = `${API_BASE_URL}/api/v1/finance`;
+
+// ---- Expenses ----
+export async function getExpenses(profileId: string, category?: string) {
+  const params = new URLSearchParams({ profile_id: profileId });
+  if (category) params.set('category', category);
+  const res = await apiFetch(`${FIN_BASE}/expenses?${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch expenses (${res.status})`);
+  return res.json();
+}
+
+export async function createExpense(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/expenses?profile_id=${profileId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create expense (${res.status})`);
+  return res.json();
+}
+
+export async function getExpenseSummary(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/expenses/summary?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch expense summary (${res.status})`);
+  return res.json();
+}
+
+export async function deleteExpense(expenseId: string, profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/expenses/${expenseId}?profile_id=${profileId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to delete expense (${res.status})`);
+  return res.json();
+}
+
+// ---- Cash Flow ----
+export async function getCashFlow(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/cashflow?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch cash flow (${res.status})`);
+  return res.json();
+}
+
+export async function createCashFlowEntry(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/cashflow?profile_id=${profileId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create cash flow entry (${res.status})`);
+  return res.json();
+}
+
+// ---- Savings ----
+export async function getSavings(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/savings?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch savings (${res.status})`);
+  return res.json();
+}
+
+export async function createSavingsGoal(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/savings/goals?profile_id=${profileId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create savings goal (${res.status})`);
+  return res.json();
+}
+
+export async function addSavingsTransaction(goalId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/savings/goals/${goalId}/transactions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to add transaction (${res.status})`);
+  return res.json();
+}
+
+// ---- Budget ----
+export async function getBudgets(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/budgets?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch budgets (${res.status})`);
+  return res.json();
+}
+
+export async function createBudget(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/budgets?profile_id=${profileId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create budget (${res.status})`);
+  return res.json();
+}
+
+// ---- Debts ----
+export async function getDebts(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/debts?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch debts (${res.status})`);
+  return res.json();
+}
+
+export async function createDebt(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/debts?profile_id=${profileId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create debt (${res.status})`);
+  return res.json();
+}
+
+export async function addDebtPayment(debtId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/debts/${debtId}/payments`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to add payment (${res.status})`);
+  return res.json();
+}
+
+// ---- Borrowing ----
+export async function getBorrowings(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/borrowings?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch borrowings (${res.status})`);
+  return res.json();
+}
+
+export async function createBorrowing(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/borrowings?profile_id=${profileId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create borrowing (${res.status})`);
+  return res.json();
+}
+
+// ---- Credit Score ----
+export async function getCreditScore(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/credit?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch credit score (${res.status})`);
+  return res.json();
+}
+
+export async function createCreditScore(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/credit?profile_id=${profileId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create credit score (${res.status})`);
+  return res.json();
+}
+
+// ---- Recycle Bin ----
+export async function getRecycleBin(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/recycle-bin?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch recycle bin (${res.status})`);
+  return res.json();
+}
+
+export async function restoreFromRecycleBin(itemIds: string[]) {
+  const res = await apiFetch(`${FIN_BASE}/recycle-bin/restore`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_ids: itemIds }),
+  });
+  if (!res.ok) throw new Error(`Failed to restore (${res.status})`);
+  return res.json();
+}
+
+export async function permanentDeleteRecycleBin(itemId: string) {
+  const res = await apiFetch(`${FIN_BASE}/recycle-bin/${itemId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to permanently delete (${res.status})`);
+  return res.json();
+}
+
+// ---- Privacy ----
+export async function getPrivacy(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/privacy?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch privacy (${res.status})`);
+  return res.json();
+}
+
+export async function updatePrivacyConsent(profileId: string, consentType: string, granted: boolean) {
+  const res = await apiFetch(`${FIN_BASE}/privacy?profile_id=${profileId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ consent_type: consentType, granted }),
+  });
+  if (!res.ok) throw new Error(`Failed to update consent (${res.status})`);
+  return res.json();
+}
+
+// ---- Settings ----
+export async function getSettings(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/settings?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch settings (${res.status})`);
+  return res.json();
+}
+
+export async function updateSettings(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/settings?profile_id=${profileId}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update settings (${res.status})`);
+  return res.json();
+}
+
+// ---- Profile ----
+export async function getProfile(profileId: string) {
+  const res = await apiFetch(`${FIN_BASE}/profile?profile_id=${profileId}`);
+  if (!res.ok) throw new Error(`Failed to fetch profile (${res.status})`);
+  return res.json();
+}
+
+export async function updateProfile(profileId: string, data: any) {
+  const res = await apiFetch(`${FIN_BASE}/profile?profile_id=${profileId}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update profile (${res.status})`);
+  return res.json();
+}
+
+export async function createProfile(profileId: string | null | undefined, data: any) {
+  // POST /finance/profile upserts the profile linked to the authenticated
+  // user; identity comes from the session token, not a client-supplied id.
+  const query = profileId ? `?profile_id=${profileId}` : '';
+  const res = await apiFetch(`${FIN_BASE}/profile${query}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to save profile (${res.status})`);
+  return res.json();
+}

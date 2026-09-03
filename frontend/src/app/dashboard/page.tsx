@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, Sparkles, AlertTriangle, ShieldCheck } from 'lucide-react';
-import Header from '@/components/ui/Header';
+import AppShell from '@/components/ui/AppShell';
 import DashboardNav, { DashboardSection } from '@/components/dashboard/DashboardNav';
 import FinancialSection from '@/components/dashboard/FinancialSection';
 import MarketSection from '@/components/dashboard/MarketSection';
@@ -11,8 +11,24 @@ import CompetitionSection from '@/components/dashboard/CompetitionSection';
 import SchemeSection from '@/components/dashboard/SchemeSection';
 import RiskSection from '@/components/dashboard/RiskSection';
 import MapContainer from '@/components/maps/MapContainer';
+import UserOverview from '@/components/dashboard/UserOverview';
 import { getConsolidatedAnalysis, downloadAnalysisPdf, ConsolidatedAnalysisData } from '@/lib/api';
 import { useLanguageStore } from '@/stores/languageStore';
+
+const VALID_SECTIONS: DashboardSection[] = [
+  'overview',
+  'financial',
+  'market',
+  'competition',
+  'map',
+  'schemes',
+  'risks',
+  'report',
+];
+
+function isDashboardSection(value: string | null): value is DashboardSection {
+  return value != null && (VALID_SECTIONS as string[]).includes(value);
+}
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -25,6 +41,13 @@ function DashboardContent() {
 
   const analysisId = searchParams.get('analysis_id') || (typeof window !== 'undefined' ? localStorage.getItem('udyam_active_analysis_id') : null);
 
+  // Apply ?section= (e.g. from the overview's scheme rows) once the data for
+  // the target analysis run is available.
+  useEffect(() => {
+    const raw = searchParams.get('section');
+    setActiveSection(isDashboardSection(raw) ? raw : 'overview');
+  }, [analysisId, data?.analysis_id, searchParams]);
+
   useEffect(() => {
     async function loadAnalysis() {
       if (!analysisId) {
@@ -36,7 +59,12 @@ function DashboardContent() {
         const res = await getConsolidatedAnalysis(analysisId);
         setData(res);
       } catch (err) {
-        console.warn('Failed to fetch consolidated analysis, using dynamic calculated state:', err);
+        console.warn('Failed to fetch consolidated analysis:', err);
+        // The stored run may no longer exist (or belong to this user) -
+        // drop it so we fall back to the personal overview instead.
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('udyam_active_analysis_id');
+        }
       } finally {
         setLoading(false);
       }
@@ -130,25 +158,27 @@ function DashboardContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-        <p className="text-slate-600 font-medium">{t('dash.loading')}</p>
-      </div>
+      <AppShell>
+        <div className="flex flex-1 flex-col items-center justify-center p-6">
+          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" />
+          <p className="text-slate-600 font-medium">{t('dash.loading')}</p>
+        </div>
+      </AppShell>
     );
   }
 
+  // No analysis open (or it could not be loaded) -> the personalised
+  // overview of the tools, schemes and reports the user has opted into.
   if (!analysisId || !data) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-6 text-center">
-        <Header />
-        <p className="mt-8 text-slate-700 font-medium">{t('dash.noAnalysis')}</p>
-      </div>
+      <AppShell>
+        <UserOverview />
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header />
+    <AppShell>
       <main className="p-6 max-w-5xl mx-auto flex flex-col gap-4 w-full flex-1">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
@@ -278,7 +308,7 @@ function DashboardContent() {
           </div>
         )}
       </main>
-    </div>
+    </AppShell>
   );
 }
 

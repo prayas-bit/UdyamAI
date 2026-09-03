@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     SUPABASE_URL: str | None = None
     SUPABASE_ANON_KEY: str | None = None
     SUPABASE_SERVICE_ROLE_KEY: str | None = None
+    # Secret used to sign Supabase Auth access tokens (Project Settings -> API -> JWT Settings).
+    SUPABASE_JWT_SECRET: str | None = None
 
     # Database Configuration (Direct PostgreSQL Connection)
     DATABASE_URL: str = "postgresql://udyam_user:udyam_password@localhost:5432/udyam_db"
@@ -74,6 +76,16 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must be provided in production environment")
         if not self.SECRET_KEY:
             self.SECRET_KEY = "dev_secret_key_fallback"
+        # Normalize empty env placeholders to None
+        for field in (
+            "SUPABASE_URL",
+            "SUPABASE_ANON_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_JWT_SECRET",
+        ):
+            value = getattr(self, field)
+            if value is not None and not str(value).strip():
+                setattr(self, field, None)
         return self
 
 

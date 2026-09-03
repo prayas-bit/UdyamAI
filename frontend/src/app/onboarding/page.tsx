@@ -9,7 +9,7 @@ import BusinessSelector from "./BusinessSelector";
 import FinancialForm from "./FinancialForm";
 import ReviewScreen from "./ReviewScreen";
 import WhatYouNeed from "./WhatYouNeed";
-import Header from "@/components/ui/Header";
+import AppShell from "@/components/ui/AppShell";
 
 import { startAnalysis } from "@/lib/api";
 import { type Language } from "@/lib/i18n";
@@ -130,8 +130,7 @@ export default function OnboardingPage() {
   // -----------------------------
   if (showReview) {
     return (
-      <main className="min-h-screen bg-slate-50">
-        <Header />
+      <AppShell>
         <ReviewScreen
           district={districtName || districtId}
           taluka={talukaName || talukaId}
@@ -151,7 +150,7 @@ export default function OnboardingPage() {
             <p className="mt-2 text-sm text-slate-300">{t('onboard.runningDesc')}</p>
           </div>
         )}
-      </main>
+      </AppShell>
     );
   }
 
@@ -159,9 +158,7 @@ export default function OnboardingPage() {
   // Main Onboarding
   // -----------------------------
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      {/* Header */}
-      <Header />
+    <AppShell>
 
       {/* Main content */}
       <section className="mx-auto max-w-6xl px-6 py-12">
@@ -250,6 +247,6 @@ export default function OnboardingPage() {
           </div>
         </div>
       </section>
-    </main>
+    </AppShell>
   );
 }

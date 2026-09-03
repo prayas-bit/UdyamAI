@@ -83,6 +83,11 @@ export default function ReviewScreen({
             <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               <p className="font-semibold">{t('onboard.unableStart')}</p>
               <p className="mt-1">{error}</p>
+              {(error.includes('Unable to reach') || error.includes('Failed to fetch')) && (
+                <p className="mt-2 text-xs text-red-500">
+                  Tip: Make sure the backend server is running on port 8000 before starting the analysis.
+                </p>
+              )}
             </div>
           )}
 

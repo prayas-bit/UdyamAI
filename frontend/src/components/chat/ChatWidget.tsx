@@ -2,10 +2,12 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, MessageCircle, Send, Sparkles, X } from 'lucide-react';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { sendChatMessage, type ChatTurn } from '@/lib/api';
 import { useLanguageStore } from '@/stores/languageStore';
 
 export default function ChatWidget() {
+  const { user } = useAuth();
   const t = useLanguageStore((s) => s.t);
   const language = useLanguageStore((s) => s.language);
   const welcome: ChatTurn = { role: 'assistant', content: t('chat.welcome') };
@@ -29,6 +31,10 @@ export default function ChatWidget() {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, open, loading]);
+
+  // The chat endpoint requires a Supabase session, so only signed-in users
+  // get the assistant widget.
+  if (!user) return null;
 
   async function handleSend(event?: React.FormEvent) {
     event?.preventDefault();

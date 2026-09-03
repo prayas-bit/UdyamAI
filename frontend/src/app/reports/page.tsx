@@ -1,15 +1,14 @@
 'use client';
 
 import React from 'react';
-import Header from '@/components/ui/Header';
+import AppShell from '@/components/ui/AppShell';
 import Link from 'next/link';
 import { useLanguageStore } from '@/stores/languageStore';
 
 export default function ReportsPage() {
   const t = useLanguageStore((s) => s.t);
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header />
+    <AppShell>
       <main className="flex-1 flex flex-col items-center justify-center p-6 text-center">
         <div className="max-w-md w-full bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
           <h1 className="text-3xl font-bold text-slate-900 mb-3">{t('module.reportsTitle')}</h1>
@@ -24,6 +23,6 @@ export default function ReportsPage() {
           </div>
         </div>
       </main>
-    </div>
+    </AppShell>
   );
 }

@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
+from app.api.deps import get_current_profile
 from app.database import get_session
+from app.models.user import Profile
 from app.reports.feasibility_report import assemble_feasibility_report_data
 from app.reports.pdf_generator import create_feasibility_pdf
 from app.schemas.feasibility import (
@@ -21,8 +23,16 @@ router = APIRouter()
 
 @router.post("", response_model=AnalysisRunResponse, status_code=201)
 @router.post("/", response_model=AnalysisRunResponse, status_code=201, include_in_schema=False)
-def create_analysis(run_data: AnalysisRunCreate, db: Session = Depends(get_session)):
-    return AnalysisOrchestrator.run_analysis_pipeline(db, run_data)
+def create_analysis(
+    run_data: AnalysisRunCreate,
+    profile: Profile = Depends(get_current_profile),
+    db: Session = Depends(get_session),
+):
+    # Analyses always belong to the authenticated user. The profile is
+    # resolved from the Supabase session so a client cannot create runs
+    # under someone else's (or a random guest) profile.
+    owned_run = run_data.model_copy(update={"user_id": profile.id})
+    return AnalysisOrchestrator.run_analysis_pipeline(db, owned_run)
 
 
 @router.get("/{id}", response_model=AnalysisRunResponse)

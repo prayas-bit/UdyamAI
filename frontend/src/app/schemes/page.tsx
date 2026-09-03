@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Header from '@/components/ui/Header';
+import AppShell from '@/components/ui/AppShell';
 import Link from 'next/link';
 import { getSchemes } from '@/lib/api';
 import { Building2, ExternalLink, Search, Sparkles, Award, ShieldCheck, Loader2 } from 'lucide-react';
@@ -88,8 +88,7 @@ export default function SchemesPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header />
+    <AppShell>
       <main className="flex-1 max-w-5xl w-full mx-auto p-6 flex flex-col gap-6">
         {/* Banner */}
         <div className="rounded-2xl bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white p-8 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -177,6 +176,6 @@ export default function SchemesPage() {
           </div>
         )}
       </main>
-    </div>
+    </AppShell>
   );
 }
