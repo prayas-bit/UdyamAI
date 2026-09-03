@@ -39,7 +39,11 @@ def run_cli(domain: str, argv: list[str] | None = None) -> int:
 
     actual_domain = args.kind if domain == "markets" else domain
     init_db()
-    with Session(engine) as db:
+    # expire_on_commit=False: run_import touches instance attributes (e.g. .id
+    # when publishing created rows into the shared dedup-key map) after its
+    # final commit; with the default True each access would re-SELECT the row
+    # — an extra round-trip per created row against a high-latency DB.
+    with Session(engine, expire_on_commit=False) as db:
         report = run_import(
             db,
             actual_domain,
@@ -69,6 +73,11 @@ def run_cli_all(argv: list[str] | None = None) -> int:
         default="data/raw",
         help="Root folder scanned in --all mode (default: data/raw)",
     )
+    parser.add_argument(
+        "--skip-samples",
+        action="store_true",
+        help="In --all mode, skip files named sample.csv (seed/test data)",
+    )
     _add_common_args(parser)
     args = parser.parse_args(argv)
 
@@ -78,6 +87,9 @@ def run_cli_all(argv: list[str] | None = None) -> int:
         for domain in domain_order:
             domain_dir = Path(args.data_dir) / domain
             for csv_path in sorted(domain_dir.glob("*.csv")):
+                if args.skip_samples and csv_path.name.lower() == "sample.csv":
+                    print(f"  skipped sample/test file: {csv_path}")
+                    continue
                 jobs.append((domain, csv_path))
 
         if not jobs:
@@ -89,8 +101,17 @@ def run_cli_all(argv: list[str] | None = None) -> int:
         parser.error("either --all, or both --domain and --file, are required")
         return 2
 
+    # One shared memo across every file so locations/markets/categories
+    # resolved in an earlier file are reused, not re-queried per row.  The
+    # dedup key map is shared too: each domain table is scanned once per run
+    # instead of once per file.
+    location_cache: dict = {}
+    existing_keys: dict = {}
+    any_rejected = False
     for domain, path in jobs:
-        with Session(engine) as db:
+        # See run_cli: expire_on_commit=False avoids a per-row refresh SELECT
+        # when run_import reads back .id after its final commit.
+        with Session(engine, expire_on_commit=False) as db:
             report = run_import(
                 db,
                 domain,
@@ -99,10 +120,14 @@ def run_cli_all(argv: list[str] | None = None) -> int:
                 source_url=args.source_url,
                 data_year=args.data_year,
                 dry_run=args.dry_run,
+                location_cache=location_cache,
+                existing_keys=existing_keys,
             )
         print(report.summary())
         print()
-    return 0
+        if report.rejected:
+            any_rejected = True
+    return 1 if any_rejected else 0
 
 
 if __name__ == "__main__":  # pragma: no cover
