@@ -130,6 +130,11 @@ def _resolve_one(
     return record_id, True
 
 
+def _cache_key(level: str, *parts: Any) -> tuple[str, ...]:
+    """Hashable cache key for one hierarchy-level resolution."""
+    return (level, *[str(p) for p in parts if p is not None])
+
+
 def resolve_village(
     db: Session,
     row: Any,
@@ -143,6 +148,10 @@ def resolve_village(
     records are created when ``allow_create`` is True (dry-run disables
     creation so nothing is written).
 
+    Uses ``report.location_cache`` (when present) to memoize lookups for the
+    duration of one import run — the same village appears on many rows, and
+    every find_* call otherwise re-queries the database.
+
     Returns ``None`` when the row has no ``village_name``.  Raises
     ``ValueError`` when parents are missing or a lookup fails — the row is
     then rejected by the importer.
@@ -150,6 +159,8 @@ def resolve_village(
     village_name = clean_str(getattr(row, "village_name", None))
     if not village_name:
         return None
+
+    cache = report.location_cache if isinstance(report, ImportReport) else None
 
     state = clean_str(getattr(row, "state", None))
     lgd_code = clean_str(getattr(row, "lgd_code", None))
@@ -159,33 +170,47 @@ def resolve_village(
 
     district_name = clean_str(getattr(row, "district_name", None))
     if district_name:
-        district_id, _ = _resolve_one(
-            db,
-            find_fn=lambda: LocationService.find_district(db, district_name, state=state),
-            create_fn=lambda: LocationService.resolve_location(
-                db, district_name, level="district", state=state
-            ),
-            name=district_name,
-            report=report,
-            label="district",
-            allow_create=allow_create,
-        )
+        key = _cache_key("district", district_name, state)
+        if cache is not None and key in cache:
+            district_id = cache[key]
+        else:
+            district_id, _ = _resolve_one(
+                db,
+                find_fn=lambda: LocationService.find_district(db, district_name, state=state),
+                create_fn=lambda: LocationService.resolve_location(
+                    db, district_name, level="district", state=state
+                ),
+                name=district_name,
+                report=report,
+                label="district",
+                allow_create=allow_create,
+            )
+            if cache is not None:
+                cache[key] = district_id
 
     taluka_name = clean_str(getattr(row, "taluka_name", None))
     if taluka_name:
         if district_id is None:
             raise ValueError(f"taluka {taluka_name!r} given without district_name — cannot resolve")
-        taluka_id, _ = _resolve_one(
-            db,
-            find_fn=lambda: LocationService.find_taluka(db, taluka_name, district_id=district_id),
-            create_fn=lambda: LocationService.resolve_location(
-                db, taluka_name, level="taluka", district_id=district_id
-            ),
-            name=taluka_name,
-            report=report,
-            label="taluka",
-            allow_create=allow_create,
-        )
+        key = _cache_key("taluka", taluka_name, district_id)
+        if cache is not None and key in cache:
+            taluka_id = cache[key]
+        else:
+            taluka_id, _ = _resolve_one(
+                db,
+                find_fn=lambda: LocationService.find_taluka(
+                    db, taluka_name, district_id=district_id
+                ),
+                create_fn=lambda: LocationService.resolve_location(
+                    db, taluka_name, level="taluka", district_id=district_id
+                ),
+                name=taluka_name,
+                report=report,
+                label="taluka",
+                allow_create=allow_create,
+            )
+            if cache is not None:
+                cache[key] = taluka_id
 
     gp_name = clean_str(getattr(row, "gram_panchayat_name", None))
     if gp_name:
@@ -193,46 +218,58 @@ def resolve_village(
             raise ValueError(
                 f"gram panchayat {gp_name!r} given without taluka_name — cannot resolve"
             )
-        gp_id, _ = _resolve_one(
-            db,
-            find_fn=lambda: LocationService.find_gram_panchayat(
-                db, gp_name, taluka_id=taluka_id, district_id=district_id
-            ),
-            create_fn=lambda: LocationService.resolve_location(
+        key = _cache_key("gram_panchayat", gp_name, taluka_id, district_id)
+        if cache is not None and key in cache:
+            gp_id = cache[key]
+        else:
+            gp_id, _ = _resolve_one(
                 db,
-                gp_name,
-                level="gram_panchayat",
-                taluka_id=taluka_id,
-                district_id=district_id,
-            ),
-            name=gp_name,
-            report=report,
-            label="gram_panchayat",
-            allow_create=allow_create,
-        )
+                find_fn=lambda: LocationService.find_gram_panchayat(
+                    db, gp_name, taluka_id=taluka_id, district_id=district_id
+                ),
+                create_fn=lambda: LocationService.resolve_location(
+                    db,
+                    gp_name,
+                    level="gram_panchayat",
+                    taluka_id=taluka_id,
+                    district_id=district_id,
+                ),
+                name=gp_name,
+                report=report,
+                label="gram_panchayat",
+                allow_create=allow_create,
+            )
+            if cache is not None:
+                cache[key] = gp_id
 
     if taluka_id is None:
         raise ValueError(
             f"cannot resolve village {village_name!r} without district_name and taluka_name"
         )
 
-    village_id, _ = _resolve_one(
-        db,
-        find_fn=lambda: LocationService.find_village(
-            db, village_name, taluka_id=taluka_id, lgd_code=lgd_code
-        ),
-        create_fn=lambda: LocationService.resolve_location(
+    key = _cache_key("village", village_name, taluka_id, lgd_code)
+    if cache is not None and key in cache:
+        village_id = cache[key]
+    else:
+        village_id, _ = _resolve_one(
             db,
-            village_name,
-            level="village",
-            district_id=district_id,
-            taluka_id=taluka_id,
-            gram_panchayat_id=gp_id,
-            lgd_code=lgd_code,
-        ),
-        name=village_name,
-        report=report,
-        label="village",
-        allow_create=allow_create,
-    )
+            find_fn=lambda: LocationService.find_village(
+                db, village_name, taluka_id=taluka_id, lgd_code=lgd_code
+            ),
+            create_fn=lambda: LocationService.resolve_location(
+                db,
+                village_name,
+                level="village",
+                district_id=district_id,
+                taluka_id=taluka_id,
+                gram_panchayat_id=gp_id,
+                lgd_code=lgd_code,
+            ),
+            name=village_name,
+            report=report,
+            label="village",
+            allow_create=allow_create,
+        )
+        if cache is not None:
+            cache[key] = village_id
     return village_id
