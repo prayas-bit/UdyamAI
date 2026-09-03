@@ -381,9 +381,22 @@ export default function UserOverview() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2.5">
+            {overview?.analyses?.[0] && (
+              <button
+                type="button"
+                onClick={() => openAnalysis(overview.analyses[0].id)}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-indigo-800 shadow transition hover:-translate-y-0.5"
+              >
+                <BarChart3 className="h-4 w-4" /> View Feasibility Report
+              </button>
+            )}
             <Link
               href="/onboarding"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-indigo-800 shadow transition hover:-translate-y-0.5"
+              className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold shadow transition hover:-translate-y-0.5 ${
+                overview?.analyses?.[0]
+                  ? 'bg-white/10 text-white ring-1 ring-white/30 hover:bg-white/20'
+                  : 'bg-white text-indigo-800'
+              }`}
             >
               <TrendingUp className="h-4 w-4" /> New analysis
             </Link>
