@@ -3,14 +3,15 @@
 import { useEffect, useState } from 'react';
 import { MapPin, Loader2 } from 'lucide-react';
 import { getDistricts, getTalukas, getVillages, District, Taluka, Village } from '@/lib/api';
+import { useLanguageStore } from '@/stores/languageStore';
 
 interface LocationSelectorProps {
   districtId: string;
   talukaId: string;
   villageId: string;
-  setDistrictId: (value: string) => void;
-  setTalukaId: (value: string) => void;
-  setVillageId: (value: string) => void;
+  setDistrictId: (id: string, name?: string) => void;
+  setTalukaId: (id: string, name?: string) => void;
+  setVillageId: (id: string, name?: string) => void;
 }
 
 export default function LocationSelector({
@@ -28,6 +29,7 @@ export default function LocationSelector({
   const [loadingTalukas, setLoadingTalukas] = useState(false);
   const [loadingVillages, setLoadingVillages] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const t = useLanguageStore((s) => s.t);
 
   // Load Districts on mount
   useEffect(() => {
@@ -38,10 +40,10 @@ export default function LocationSelector({
         const apiDistricts = await getDistricts();
         setDistricts(apiDistricts);
         if (apiDistricts.length === 0) {
-          setLoadError('No districts found in the database. Run data import scripts first.');
+          setLoadError(t('onboard.noDistricts'));
         }
       } catch {
-        setLoadError('Failed to load districts from the API.');
+        setLoadError(t('onboard.failDistricts'));
       } finally {
         setLoadingDistricts(false);
       }
@@ -97,11 +99,11 @@ export default function LocationSelector({
 
       <div className="w-full">
         <h4 className="font-semibold text-slate-900">
-          1. Tell us your location
+          {t('onboard.locTitle')}
         </h4>
 
         <p className="mt-1 text-sm text-slate-500">
-          Select your district, taluka/block, and village in Maharashtra.
+          {t('onboard.locDesc')}
         </p>
         {loadError && <p className="mt-2 text-sm text-red-600">{loadError}</p>}
 
@@ -111,15 +113,17 @@ export default function LocationSelector({
             <select
               value={districtId}
               onChange={(e) => {
-                setDistrictId(e.target.value);
-                setTalukaId('');
-                setVillageId('');
+                const id = e.target.value;
+                const found = districts.find((d) => d.id === id);
+                setDistrictId(id, found?.name || '');
+                setTalukaId('', '');
+                setVillageId('', '');
               }}
               disabled={loadingDistricts}
               className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100"
             >
               <option value="">
-                {loadingDistricts ? 'Loading districts...' : 'Select district'}
+                {loadingDistricts ? t('onboard.loadingDistricts') : t('onboard.selectDistrict')}
               </option>
               {districts.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -137,14 +141,16 @@ export default function LocationSelector({
             <select
               value={talukaId}
               onChange={(e) => {
-                setTalukaId(e.target.value);
-                setVillageId('');
+                const id = e.target.value;
+                const found = talukas.find((t) => t.id === id);
+                setTalukaId(id, found?.name || '');
+                setVillageId('', '');
               }}
               disabled={!districtId || loadingTalukas}
               className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100"
             >
               <option value="">
-                {loadingTalukas ? 'Loading talukas...' : 'Select taluka / block'}
+                {loadingTalukas ? t('onboard.loadingTalukas') : t('onboard.selectTaluka')}
               </option>
               {talukas.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -161,12 +167,16 @@ export default function LocationSelector({
           <div className="relative">
             <select
               value={villageId}
-              onChange={(e) => setVillageId(e.target.value)}
+              onChange={(e) => {
+                const id = e.target.value;
+                const found = villages.find((v) => v.id === id);
+                setVillageId(id, found?.name || '');
+              }}
               disabled={!talukaId || loadingVillages}
               className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100"
             >
               <option value="">
-                {loadingVillages ? 'Loading villages...' : 'Select village'}
+                {loadingVillages ? t('onboard.loadingVillages') : t('onboard.selectVillage')}
               </option>
               {villages.map((item) => (
                 <option key={item.id} value={item.id}>

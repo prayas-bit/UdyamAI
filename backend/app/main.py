@@ -1,10 +1,14 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.deps import get_current_user
 from app.api.routes import (
     agriculture,
     analysis,
+    auth,
     businesses,
+    chat,
+    dashboard,
     economic,
     feasibility,
     finance,
@@ -46,7 +50,20 @@ app.add_middleware(
 setup_exception_handlers(app)
 
 # Include Routers
+app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(
+    auth.router,
+    prefix="/api/v1/auth",
+    tags=["Auth"],
+    include_in_schema=False,
+)
 app.include_router(health.router, prefix="/health", tags=["Health"])
+app.include_router(
+    health.router,
+    prefix="/api/v1/health",
+    tags=["Health"],
+    include_in_schema=False,
+)
 
 app.include_router(
     locations.router,
@@ -101,14 +118,27 @@ app.include_router(
     analysis.router,
     prefix="/analysis",
     tags=["Feasibility Analysis"],
-    dependencies=[Depends(default_limiter)],
+    dependencies=[Depends(get_current_user), Depends(default_limiter)],
 )
 app.include_router(
     analysis.router,
     prefix="/api/v1/analysis",
     tags=["Feasibility Analysis"],
     include_in_schema=False,
-    dependencies=[Depends(default_limiter)],
+    dependencies=[Depends(get_current_user), Depends(default_limiter)],
+)
+app.include_router(
+    chat.router,
+    prefix="/chat",
+    tags=["Chat"],
+    dependencies=[Depends(get_current_user), Depends(default_limiter)],
+)
+app.include_router(
+    chat.router,
+    prefix="/api/v1/chat",
+    tags=["Chat"],
+    include_in_schema=False,
+    dependencies=[Depends(get_current_user), Depends(default_limiter)],
 )
 app.include_router(
     finance.router, prefix="/finance", tags=["Finance"], dependencies=[Depends(default_limiter)]
@@ -121,14 +151,30 @@ app.include_router(
     dependencies=[Depends(default_limiter)],
 )
 app.include_router(
-    reports.router, prefix="/reports", tags=["Reports"], dependencies=[Depends(default_limiter)]
+    dashboard.router,
+    prefix="/dashboard",
+    tags=["Dashboard"],
+    dependencies=[Depends(get_current_user), Depends(default_limiter)],
+)
+app.include_router(
+    dashboard.router,
+    prefix="/api/v1/dashboard",
+    tags=["Dashboard"],
+    include_in_schema=False,
+    dependencies=[Depends(get_current_user), Depends(default_limiter)],
+)
+app.include_router(
+    reports.router,
+    prefix="/reports",
+    tags=["Reports"],
+    dependencies=[Depends(get_current_user), Depends(default_limiter)],
 )
 app.include_router(
     reports.router,
     prefix="/api/v1/reports",
     tags=["Reports"],
     include_in_schema=False,
-    dependencies=[Depends(default_limiter)],
+    dependencies=[Depends(get_current_user), Depends(default_limiter)],
 )
 app.include_router(
     users.router, prefix="/users", tags=["Users"], dependencies=[Depends(default_limiter)]

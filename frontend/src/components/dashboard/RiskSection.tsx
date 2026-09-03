@@ -30,12 +30,36 @@ const DEFAULT_RISKS: never[] = [];
 
 export default function RiskSection({ data }: RiskSectionProps) {
   const feas = data?.feasibility || {};
+  const aiAdvice = data?.ai_advice || {};
   const riskScore = feas.risk_score != null ? Math.round(feas.risk_score) : null;
   const riskLevel =
     riskScore == null ? 'Not assessed' : riskScore >= 70 ? 'Low Risk' : riskScore >= 40 ? 'Medium Risk' : 'High Risk';
 
   const rawRisks = data?.risks || [];
   const riskList = Array.isArray(rawRisks) ? rawRisks : [];
+
+  // AI-derived risk indicators when backend risk_score is missing
+  const aiRisks: string[] = aiAdvice.risks || [];
+  const aiWeaknesses: string[] = aiAdvice.weaknesses || [];
+  const aiConfidence = aiAdvice.confidence || null;
+  const aiModelName = aiAdvice.model_name || null;
+
+  // Derive a risk level from AI data when feasibility score is missing
+  const derivedRiskLevel =
+    riskScore != null ? riskLevel
+    : aiRisks.length > 3 ? 'High Risk'
+    : aiRisks.length > 0 ? 'Medium Risk'
+    : aiWeaknesses.length > 2 ? 'Medium Risk'
+    : null;
+
+  // Calculate mitigation coverage: only count risks that actually have mitigation text
+  const risksWithMitigation = riskList.filter((r: any) => {
+    const mitigation = r.mitigation || r.mitigation_strategy || r.action_plan;
+    return mitigation && String(mitigation).trim().length > 0;
+  });
+  const mitigationCoverage = riskList.length > 0
+    ? Math.round((risksWithMitigation.length / riskList.length) * 100)
+    : 0;
 
   const swot = feas.swot || data?.ai_advice?.swot || {};
   const strengths = data?.ai_advice?.reasoning || swot.strengths || (swot as any).strength_indicators || [];
@@ -53,8 +77,10 @@ export default function RiskSection({ data }: RiskSectionProps) {
             <ShieldCheck className="h-5 w-5 text-emerald-600" />
           </div>
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-3xl font-extrabold text-slate-900">{riskScore ?? '—'}</span>
-            {riskScore != null && <span className="text-sm font-medium text-slate-400">/100</span>}
+            <span className="text-3xl font-extrabold text-slate-900">
+              {riskScore ?? (aiRisks.length > 0 ? `~${Math.max(20, 60 - aiRisks.length * 5)}` : '—')}
+            </span>
+            {(riskScore != null || aiRisks.length > 0) && <span className="text-sm font-medium text-slate-400">/100</span>}
           </div>
           <p className="mt-1 text-xs text-slate-500">Higher score indicates lower operational risk</p>
         </div>
@@ -64,8 +90,16 @@ export default function RiskSection({ data }: RiskSectionProps) {
             <span className="text-sm font-semibold text-slate-500">Risk Rating</span>
             <AlertTriangle className="h-5 w-5 text-amber-500" />
           </div>
-          <h3 className="mt-2 text-2xl font-extrabold text-slate-900">{riskLevel}</h3>
-          <p className="mt-1 text-xs text-slate-500">Evaluated against 12 risk metrics</p>
+          <h3 className="mt-2 text-2xl font-extrabold text-slate-900">
+            {derivedRiskLevel || riskLevel}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            {riskScore != null
+              ? 'Evaluated against 12 risk metrics'
+              : derivedRiskLevel
+                ? `Derived from ${aiRisks.length} AI-identified risk factors`
+                : 'Awaiting feasibility analysis'}
+          </p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -74,9 +108,13 @@ export default function RiskSection({ data }: RiskSectionProps) {
             <CheckCircle2 className="h-5 w-5 text-blue-600" />
           </div>
           <h3 className="mt-2 text-2xl font-extrabold text-slate-900">
-            {riskList.length > 0 ? '100% Covered' : 'Pending'}
+            {riskList.length > 0 ? `${mitigationCoverage}% Covered` : 'Pending'}
           </h3>
-          <p className="mt-1 text-xs text-slate-500">All risk factors paired with mitigation controls</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {riskList.length > 0
+              ? `${risksWithMitigation.length} of ${riskList.length} risks have mitigation plans`
+              : 'Risk factors pending analysis'}
+          </p>
         </div>
       </div>
 
@@ -148,21 +186,19 @@ export default function RiskSection({ data }: RiskSectionProps) {
             </h3>
           </div>
           <span className="text-xs font-semibold px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full">
-            {riskList.length} Risk Factors Identified
+            {riskList.length > 0 ? `${riskList.length} Risk Factors Identified` : aiRisks.length > 0 ? `${aiRisks.length} AI-Identified Risks` : '0 Risks Identified'}
           </span>
         </div>
 
         <div className="flex flex-col gap-4">
-          {riskList.length === 0 ? (
+          {riskList.length === 0 && aiRisks.length === 0 && (
             <p className="text-sm text-slate-600">No risk factors were identified for this analysis run.</p>
-          ) : null}
+          )}
           {riskList.map((r: any, idx: number) => {
             const factorName = r.risk_factor || r.factor || r.risk_type || `Operational Risk ${idx + 1}`;
             const category = r.category || 'Enterprise Risk';
             const level = r.level || 'Medium';
-            const mitigation =
-              r.mitigation ||
-              'Implement active monitoring, maintain emergency capital reserves, and establish supplier SLAs.';
+            const mitigation = r.mitigation || r.mitigation_strategy || r.action_plan || null;
 
             return (
               <div
@@ -192,14 +228,72 @@ export default function RiskSection({ data }: RiskSectionProps) {
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
                     Mitigation Strategy & Action Plan
                   </p>
-                  <p className="text-sm text-slate-700 leading-relaxed font-normal">
-                    {mitigation}
+                  {mitigation ? (
+                    <p className="text-sm text-slate-700 leading-relaxed font-normal">
+                      {mitigation}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-slate-400 italic">
+                      Mitigation plan pending — review risk factors with financial advisor
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* AI-derived risk items when backend risk list is empty */}
+          {riskList.length === 0 && aiRisks.length > 0 && aiRisks.map((riskText: string, idx: number) => {
+            const isHighSeverity = idx < 2;
+            const aiLevel = isHighSeverity ? 'Medium' : 'Low';
+            return (
+              <div
+                key={`ai-risk-${idx}`}
+                className="rounded-xl border border-blue-200 bg-blue-50/30 p-5 flex flex-col gap-3"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/60 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-blue-500 shrink-0" />
+                    <h4 className="font-bold text-slate-900 text-sm sm:text-base">{riskText}</h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-blue-500 bg-white px-2.5 py-0.5 rounded border border-blue-200">
+                      AI-Identified
+                    </span>
+                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${getRiskLevelBadge(aiLevel)}`}>
+                      {aiLevel.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg border border-blue-100 p-3.5 mt-1">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-1">
+                    AI-Generated Mitigation Guidance
+                  </p>
+                  <p className="text-sm text-slate-500 italic">
+                    Consult the matched scheme documents and financial plan to build a specific mitigation action.
                   </p>
                 </div>
               </div>
             );
           })}
         </div>
+
+        {/* AI Confidence Badge */}
+        {aiConfidence && (
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-400">AI Confidence:</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              aiConfidence === 'high' ? 'bg-emerald-100 text-emerald-700'
+              : aiConfidence === 'medium' ? 'bg-amber-100 text-amber-700'
+              : 'bg-slate-100 text-slate-600'
+            }`}>
+              {aiConfidence.toUpperCase()}
+            </span>
+            {aiModelName && aiModelName !== 'unavailable' && (
+              <span className="text-xs text-slate-400">via {aiModelName}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

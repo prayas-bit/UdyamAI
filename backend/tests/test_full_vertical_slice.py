@@ -193,6 +193,8 @@ def test_full_vertical_slice_orchestration_maharashtra():
     mock_comp_resp.market_saturation_level = "low"
     mock_comp_resp.threat_level = "low"
     mock_comp_resp.nearest_competitor_distance_km = 2.4
+    mock_comp_resp.data_confidence = "high"
+    mock_comp_resp.data_available = True
 
     mock_advice_resp = AIAdvice(
         summary="Excellent feasibility for micro-dairy processing unit in Wagholi, Pune district.",
@@ -401,6 +403,9 @@ def test_full_vertical_slice_api_routes(client: TestClient):
             "overall_score": 85.0,
             "market_score": 85.0,
             "financial_score": 90.0,
+            "data_confidence": "high",
+            "competition_data_available": True,
+            "market_data_available": True,
         },
         risks=[
             {

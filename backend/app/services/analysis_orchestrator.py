@@ -25,6 +25,10 @@ from sqlmodel import Session, select
 
 from app.ai import advisor
 from app.config import settings
+from app.market.risks import (
+    HIGH_COMPETITOR_DENSITY_THRESHOLD,
+    VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD,
+)
 from app.models.analysis import AIAnalysis, AnalysisRun, FeasibilityAnalysis
 from app.models.business import BusinessCategory
 from app.models.location import District, Taluka, Village
@@ -275,12 +279,15 @@ class AnalysisOrchestrator:
             # -------------------------------------------------------------
             # Step 9: Run feasibility
             # -------------------------------------------------------------
+            est_subsidy_val = getattr(financial_calc, "potential_subsidy", 0.0) or 0.0
             feasibility_score_res = FeasibilityService.calculate_feasibility(
                 db,
                 village_id=village.id,
                 business_category_id=category.id,
                 available_capital=avail_cap,
                 desired_project_cost=desired_cost,
+                estimated_subsidy=est_subsidy_val,
+                matched_schemes=db_scheme_matches,
             )
 
             # -------------------------------------------------------------
@@ -313,14 +320,21 @@ class AnalysisOrchestrator:
                 mkt_indicators.get("pricing", {}) if isinstance(mkt_indicators, dict) else {}
             )
 
+            demand_score_val = demand_info.get("demand_score")
+            if demand_score_val is not None:
+                _ds = float(demand_score_val)
+                _demand_level = "High" if _ds >= 70 else ("Moderate" if _ds >= 40 else "Low")
+            else:
+                _demand_level = None
+
             mkt_context = MarketContext(
                 population_estimate=pop_est,
                 household_estimate=hh_est,
                 market_reach_estimate=target_est,
                 radius_km=10.0,
                 demand_indicators={
-                    "score": demand_info.get("demand_score"),
-                    "level": demand_info.get("demand_level"),
+                    "score": demand_score_val,
+                    "level": _demand_level,
                     "growth_rate": demand_info.get("growth_rate"),
                 },
                 pricing_indicators={
@@ -331,6 +345,8 @@ class AnalysisOrchestrator:
             )
 
             comp_cnt = _get_comp_count(competition_res)
+            raw_comp_conf = getattr(competition_res, "data_confidence", None)
+            comp_conf = str(raw_comp_conf) if isinstance(raw_comp_conf, str) else None
 
             comp_context = CompetitionContext(
                 competitor_count=comp_cnt,
@@ -341,6 +357,7 @@ class AnalysisOrchestrator:
                     competition_res, "total_businesses_in_radius", 0
                 ),
                 target_category=getattr(category, "name", None) if category else None,
+                data_confidence=comp_conf,
             )
 
             scheme_contexts = []
@@ -361,6 +378,41 @@ class AnalysisOrchestrator:
                         )
                     )
 
+            raw_feas_conf = getattr(feasibility_score_res, "data_confidence", None)
+            feas_conf = str(raw_feas_conf) if isinstance(raw_feas_conf, str) else "high"
+
+            mkt_avail = (
+                feasibility_score_res.market_data_available
+                if isinstance(getattr(feasibility_score_res, "market_data_available", None), bool)
+                else True
+            )
+            fin_avail = (
+                feasibility_score_res.financial_data_available
+                if isinstance(
+                    getattr(feasibility_score_res, "financial_data_available", None), bool
+                )
+                else True
+            )
+            comp_avail = (
+                feasibility_score_res.competition_data_available
+                if isinstance(
+                    getattr(feasibility_score_res, "competition_data_available", None), bool
+                )
+                else True
+            )
+            infra_avail = (
+                feasibility_score_res.infrastructure_data_available
+                if isinstance(
+                    getattr(feasibility_score_res, "infrastructure_data_available", None), bool
+                )
+                else True
+            )
+            risk_avail = (
+                feasibility_score_res.risk_data_available
+                if isinstance(getattr(feasibility_score_res, "risk_data_available", None), bool)
+                else True
+            )
+
             feasibility_context = FeasibilityContext(
                 overall_score=feasibility_score_res.overall_score,
                 market_score=feasibility_score_res.market_score,
@@ -369,6 +421,13 @@ class AnalysisOrchestrator:
                 infrastructure_score=feasibility_score_res.infrastructure_score,
                 risk_score=feasibility_score_res.risk_score,
                 swot=feasibility_score_res.swot,
+                confidence=feas_conf,
+                data_confidence=feas_conf,
+                market_data_available=mkt_avail,
+                financial_data_available=fin_avail,
+                competition_data_available=comp_avail,
+                infrastructure_data_available=infra_avail,
+                risk_data_available=risk_avail,
             )
 
             # Safely extract optional language property with default fallback and validation guard
@@ -378,31 +437,63 @@ class AnalysisOrchestrator:
                 logger.warning("Unsupported language %s, defaulting to 'en'", lang_str)
                 lang_str = "en"
 
-            mkt_risks = getattr(market_res, "risks", None)
-            raw_mkt_score = (
-                getattr(mkt_risks, "overall_market_risk_score", 0.0) if mkt_risks else 0.0
-            )
+            # Extract risk data from the market_indicators dict inside
+            # RadiusMarketAnalysisResult (it does NOT have a top-level 'risks' attr).
+            _mkt_indicators = (
+                market_res.market_indicators if hasattr(market_res, "market_indicators") else {}
+            ) or {}
+            mkt_risks = _mkt_indicators.get("risks") or {}
+            raw_mkt_score = mkt_risks.get("risk_score", 0.0)
             mkt_risk_score = (
                 float(raw_mkt_score) if isinstance(raw_mkt_score, (int, float)) else 0.0
             )
 
-            raw_mkt_level = getattr(mkt_risks, "risk_level", "low") if mkt_risks else "low"
+            raw_mkt_level = mkt_risks.get("overall_market_risk_level", "low")
             mkt_risk_level = str(raw_mkt_level) if isinstance(raw_mkt_level, str) else "low"
 
-            raw_threat = (
-                getattr(competition_res, "threat_level", "low") if competition_res else "low"
+            # CompetitionAnalysisDetailResponse has no 'threat_level' field;
+            # derive it dynamically from competitor_density.
+            comp_density = 0.0
+            if competition_res is not None:
+                _cd = getattr(competition_res, "competitor_density", None)
+                if _cd is not None:
+                    try:
+                        comp_density = float(_cd)
+                    except (ValueError, TypeError):
+                        comp_density = 0.0
+            if comp_density >= VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD:
+                comp_threat_level = "high"
+            elif comp_density >= HIGH_COMPETITOR_DENSITY_THRESHOLD:
+                comp_threat_level = "medium"
+            else:
+                comp_threat_level = "low"
+
+            # RiskContext.score is a normalized 0.0-1.0 severity fraction. The raw
+            # sources are on wider scales (market risk engine: 0-10; competitor
+            # density: competitors per km^2, unbounded), so normalize & clamp before
+            # passing them on or the AnalysisContext validation crashes with a 500.
+            def _normalize_risk_score(raw: float, max_raw: float) -> float:
+                if max_raw <= 0.0:
+                    return 0.0
+                return max(0.0, min(1.0, raw / max_raw))
+
+            mkt_risk_score_norm = _normalize_risk_score(mkt_risk_score, 10.0)
+            comp_threat_max_density = (
+                VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD
+                if VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD > 0.0
+                else HIGH_COMPETITOR_DENSITY_THRESHOLD
             )
-            comp_threat_level = str(raw_threat) if isinstance(raw_threat, str) else "low"
+            comp_threat_score = _normalize_risk_score(comp_density, comp_threat_max_density)
 
             risks_context = [
                 RiskContext(
                     risk_type="market_risk",
-                    score=mkt_risk_score,
+                    score=mkt_risk_score_norm,
                     level=mkt_risk_level,
                 ),
                 RiskContext(
                     risk_type="competition_threat",
-                    score=None,
+                    score=comp_threat_score,
                     level=comp_threat_level,
                 ),
             ]
@@ -466,7 +557,7 @@ class AnalysisOrchestrator:
                         getattr(feasibility_score_res.swot, "threat_indicators", []),
                     )
                 },
-                confidence=ai_advice.confidence,
+                confidence=feasibility_score_res.data_confidence or ai_advice.confidence,
                 scoring_version="v1.0",
             )
             db.add(db_feasibility)
@@ -511,8 +602,8 @@ class AnalysisOrchestrator:
                 market_reach_estimate=target_est,
                 competitor_count=comp_cnt,
                 demand_indicators={
-                    "score": demand_info.get("demand_score"),
-                    "level": demand_info.get("demand_level"),
+                    "score": demand_score_val,
+                    "level": _demand_level,
                 },
                 pricing_indicators={"average_price": pricing_info.get("average_market_price")},
                 data_confidence=ai_advice.confidence,

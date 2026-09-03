@@ -68,6 +68,7 @@ Core rules:
 - Use only the verified backend data and RAG evidence contained in the context below.
 - Do not invent subsidy percentages, loan rates, prices, project costs, market size, or eligibility rules.
 - If a value is missing or not verified, say so explicitly.
+- If competition_data_available is false or no business records exist in radius, do NOT claim there is zero competition or high first-mover advantage; advise that local competitive data is insufficient.
 - Explain the feasibility result using the given backend numbers.
 - Return a valid JSON object that matches the schema expected by the backend.
 - Keep the answer in {normalized_language}.

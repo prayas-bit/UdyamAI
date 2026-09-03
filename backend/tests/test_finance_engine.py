@@ -5,7 +5,7 @@ Unit tests for UdyamAI Phase 5 Finance Engine logic & services.
 from uuid import uuid4
 
 import pytest
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 from sqlmodel.pool import StaticPool
 
 from app.models.analysis import AnalysisRun
@@ -282,13 +282,15 @@ def test_finance_engine_database_rule_and_persistence(session: Session):
     assert res.potential_loan == pytest.approx(800000.0)
 
     # Verify DB persistence
-    db_analysis = session.query(FinancialAnalysis).filter_by(analysis_run_id=run.id).first()
+    db_analysis = session.exec(
+        select(FinancialAnalysis).where(FinancialAnalysis.analysis_run_id == run.id)
+    ).first()
     assert db_analysis is not None
     assert db_analysis.calculated_loan == pytest.approx(800000.0)
 
-    schedules = (
-        session.query(RepaymentSchedule).filter_by(financial_analysis_id=db_analysis.id).all()
-    )
+    schedules = session.exec(
+        select(RepaymentSchedule).where(RepaymentSchedule.financial_analysis_id == db_analysis.id)
+    ).all()
     assert len(schedules) == 60
     assert schedules[0].opening_balance == pytest.approx(800000.0)
     assert schedules[0].is_moratorium is True

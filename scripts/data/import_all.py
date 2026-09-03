@@ -4,6 +4,10 @@
 Usage:
     python scripts/data/import_all.py --domain population --file data/raw/population/file.csv
     python scripts/data/import_all.py --all [--dry-run]
+
+With ``--all`` (and not ``--dry-run``) the run finishes by deriving
+infrastructure facility records from the freshly imported markets and
+businesses (see ``seed_infrastructure.py``).
 """
 
 import sys
@@ -21,5 +25,19 @@ except ImportError as exc:
     )
     sys.exit(1)
 
+
+def _seed_infrastructure() -> None:
+    """Derive infrastructure records from the imported markets/businesses."""
+    try:
+        from seed_infrastructure import seed_infrastructure
+    except ImportError as exc:
+        print(f"Warning: could not import seed_infrastructure: {exc}")
+        return
+    seed_infrastructure()
+
+
 if __name__ == "__main__":
-    sys.exit(run_cli_all())
+    code = run_cli_all()
+    if code == 0 and "--all" in sys.argv and "--dry-run" not in sys.argv:
+        _seed_infrastructure()
+    sys.exit(code)

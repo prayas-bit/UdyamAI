@@ -91,23 +91,29 @@ def analyze_competition(
             sources.add((source, source_url, data_year))
 
     competitor_density = round(competitor_count / area_km2, 2)
+    data_available = total_businesses > 0
 
     # Market gap identification
     market_gaps = []
-    if competitor_density < 0.5:
+    if not data_available:
         market_gaps.append(
-            "Low commercial saturation: Opportunity for new local retail/service ventures."
+            "Insufficient local business data: No registered commercial businesses identified in radius to evaluate market saturation."
         )
-    elif competitor_density > 5.0:
-        market_gaps.append(
-            "High commercial density: Recommended focus on differentiation or specialized niche offerings."
-        )
+    else:
+        if competitor_density < 0.5:
+            market_gaps.append(
+                "Low commercial saturation: Opportunity for new local retail/service ventures."
+            )
+        elif competitor_density > 5.0:
+            market_gaps.append(
+                "High commercial density: Recommended focus on differentiation or specialized niche offerings."
+            )
 
-    if competitor_count == 0 and has_filter:
-        target_label = target_category_name or "selected category"
-        market_gaps.append(
-            f"Zero direct competitors identified for '{target_label}' in radius: High first-mover advantage potential."
-        )
+        if competitor_count == 0 and has_filter:
+            target_label = target_category_name or "selected category"
+            market_gaps.append(
+                f"Zero direct competitors identified for '{target_label}' in radius: High first-mover advantage potential."
+            )
 
     # Completeness and quality indicator computation
     if total_businesses == 0:
@@ -135,6 +141,7 @@ def analyze_competition(
     quality_indicator = {
         "completeness_score": completeness_score,
         "confidence_level": confidence_level,
+        "data_available": data_available,
         "verified_records_count": verified_count,
         "total_records_count": total_businesses,
         "has_category_filter": has_filter,
@@ -183,5 +190,7 @@ def analyze_competition(
         "identified_market_gaps": market_gaps,
         "quality_indicator": quality_indicator,
         "data_completeness": confidence_level,
+        "data_confidence": confidence_level,
+        "data_available": data_available,
         "provenance": provenance_entries,
     }
