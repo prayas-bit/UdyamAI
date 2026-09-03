@@ -125,6 +125,35 @@ def _fuzzy_ratio(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
+def _in_savepoint(db) -> bool:
+    """True when *db* is a real session inside a nested (savepoint) transaction."""
+    if type(db).__name__ == "MagicMock":
+        return False  # mocks report truthy for everything — treat as top-level
+    try:
+        return bool(db.in_nested_transaction())
+    except (AttributeError, TypeError):  # non-Session stand-ins (tests)
+        return False
+
+
+def _persist_new(db, record) -> UUID:
+    """Add + flush a record, committing only when NOT inside a savepoint.
+
+    The ingestion pipeline wraps each imported row in ``db.begin_nested()``.
+    An inner ``db.commit()`` would close the savepoint's transaction, so any
+    later statement in that row (e.g. the ``refresh`` below) fails with
+    "Can't operate on closed transaction inside context manager".  Inside a
+    savepoint the record stays pending in the outer transaction and is
+    persisted by the pipeline's end-of-file commit; outside one the commit is
+    kept so standalone callers still see the record immediately.
+    """
+    db.add(record)
+    db.flush()
+    if not _in_savepoint(db):
+        db.commit()
+    db.refresh(record)
+    return record.id
+
+
 class LocationService:
     """Unified location service: CRUD, normalization, matching, resolution, dedup."""
 
@@ -370,15 +399,10 @@ class LocationService:
             )
             if match:
                 return match.id
-            district = District(
-                name=name.strip(),
-                state=state or "Maharashtra",
-                lgd_code=lgd_code,
+            return _persist_new(
+                db,
+                District(name=name.strip(), state=state or "Maharashtra", lgd_code=lgd_code),
             )
-            db.add(district)
-            db.commit()
-            db.refresh(district)
-            return district.id
 
         if level == "taluka":
             if not district_id:
@@ -392,11 +416,10 @@ class LocationService:
             )
             if match:
                 return match.id
-            taluka = Taluka(name=name.strip(), district_id=district_id, lgd_code=lgd_code)
-            db.add(taluka)
-            db.commit()
-            db.refresh(taluka)
-            return taluka.id
+            return _persist_new(
+                db,
+                Taluka(name=name.strip(), district_id=district_id, lgd_code=lgd_code),
+            )
 
         if level == "gram_panchayat":
             if not taluka_id or not district_id:
@@ -413,16 +436,15 @@ class LocationService:
             )
             if match:
                 return match.id
-            gp = GramPanchayat(
-                name=name.strip(),
-                taluka_id=taluka_id,
-                district_id=district_id,
-                lgd_code=lgd_code,
+            return _persist_new(
+                db,
+                GramPanchayat(
+                    name=name.strip(),
+                    taluka_id=taluka_id,
+                    district_id=district_id,
+                    lgd_code=lgd_code,
+                ),
             )
-            db.add(gp)
-            db.commit()
-            db.refresh(gp)
-            return gp.id
 
         if level == "village":
             if not taluka_id:
@@ -436,17 +458,16 @@ class LocationService:
             )
             if match:
                 return match.id
-            village = Village(
-                name=name.strip(),
-                district_id=district_id,
-                taluka_id=taluka_id,
-                gram_panchayat_id=gram_panchayat_id,
-                lgd_code=lgd_code,
+            return _persist_new(
+                db,
+                Village(
+                    name=name.strip(),
+                    district_id=district_id,
+                    taluka_id=taluka_id,
+                    gram_panchayat_id=gram_panchayat_id,
+                    lgd_code=lgd_code,
+                ),
             )
-            db.add(village)
-            db.commit()
-            db.refresh(village)
-            return village.id
 
         raise ValueError(
             f"Invalid level: {level!r}. Must be district|taluka|gram_panchayat|village"
