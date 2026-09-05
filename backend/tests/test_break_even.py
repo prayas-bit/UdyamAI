@@ -1,4 +1,3 @@
-import pytest
 from app.finance.break_even import calculate_break_even_period
 
 

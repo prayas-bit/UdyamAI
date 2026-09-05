@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
+from app.finance.break_even import calculate_break_even_period
 from app.models.analysis import AIAnalysis, AnalysisRun, FeasibilityAnalysis
 from app.models.business import BusinessCategory
 from app.models.finance import FinancialAnalysis
@@ -15,7 +16,6 @@ from app.schemas.feasibility import (
     ConsolidatedAnalysisResponse,
 )
 from app.schemes.matcher import estimate_subsidy_for_match
-from app.finance.break_even import calculate_break_even_period
 
 _AI_UNAVAILABLE_MARKERS = (
     "ai advisory guidance is temporarily unavailable",
@@ -483,15 +483,30 @@ class AnalysisService:
         cat_desc = (business_data.get("description") or "").lower()
         text_context = f"{cat_name} {cat_desc}"
 
-        if any(k in text_context for k in ["retail", "grocery", "kirana", "shop", "store", "trading", "mart"]):
+        if any(
+            k in text_context
+            for k in ["retail", "grocery", "kirana", "shop", "store", "trading", "mart"]
+        ):
             bench = {"rev_ratio": 0.35, "cost_ratio": 0.78}
-        elif any(k in text_context for k in ["dairy", "milk", "cattle", "livestock", "poultry", "goat", "animal"]):
+        elif any(
+            k in text_context
+            for k in ["dairy", "milk", "cattle", "livestock", "poultry", "goat", "animal"]
+        ):
             bench = {"rev_ratio": 0.25, "cost_ratio": 0.65}
-        elif any(k in text_context for k in ["service", "repair", "salon", "tailor", "mechanic", "digital"]):
+        elif any(
+            k in text_context
+            for k in ["service", "repair", "salon", "tailor", "mechanic", "digital"]
+        ):
             bench = {"rev_ratio": 0.28, "cost_ratio": 0.48}
-        elif any(k in text_context for k in ["manufactur", "process", "mill", "oil", "textile", "craft", "fabric"]):
+        elif any(
+            k in text_context
+            for k in ["manufactur", "process", "mill", "oil", "textile", "craft", "fabric"]
+        ):
             bench = {"rev_ratio": 0.20, "cost_ratio": 0.58}
-        elif any(k in text_context for k in ["food", "hotel", "canteen", "restaurant", "bakery", "sweet", "snack"]):
+        elif any(
+            k in text_context
+            for k in ["food", "hotel", "canteen", "restaurant", "bakery", "sweet", "snack"]
+        ):
             bench = {"rev_ratio": 0.32, "cost_ratio": 0.70}
         else:
             bench = {"rev_ratio": 0.24, "cost_ratio": 0.62}
@@ -524,7 +539,9 @@ class AnalysisService:
         est_monthly_rev = fin_data.get("monthly_revenue")
         if est_monthly_rev is None and feasible_cost > 0:
             if target_customers > 0 and avg_price and avg_price > 0:
-                est_monthly_rev = round(target_customers * float(avg_price) * 0.3 * 4 * comp_mult, 2)
+                est_monthly_rev = round(
+                    target_customers * float(avg_price) * 0.3 * 4 * comp_mult, 2
+                )
             else:
                 est_monthly_rev = round(feasible_cost * bench["rev_ratio"] * market_mult, 2)
 
