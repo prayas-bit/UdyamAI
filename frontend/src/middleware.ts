@@ -50,7 +50,7 @@ export async function middleware(request: NextRequest) {
 
     if (user && pathname === '/login') {
       const url = request.nextUrl.clone();
-      url.pathname = '/setup';
+      url.pathname = '/dashboard';
       url.search = '';
       return NextResponse.redirect(url);
     }

@@ -60,7 +60,7 @@ export default function LoginForm() {
           setError(t('login.authFailed'));
           return;
         }
-        router.push('/setup');
+        router.push('/dashboard');
       } else {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
