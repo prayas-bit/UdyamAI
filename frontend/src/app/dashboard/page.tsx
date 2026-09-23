@@ -65,48 +65,49 @@ function DashboardContent() {
   }, [analysisId, data?.analysis_id, searchParams]);
 
   useEffect(() => {
+    // No analysis_id in URL → always show the Overview, never auto-load feasibility data
+    if (!analysisId) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
     let isCancelled = false;
     const requestedId = analysisId;
+    const cacheKey = `udyam_cached_analysis_${userScope}_${requestedId}`;
 
-    async function loadAnalysis() {
-      if (!requestedId) {
-        setData(null);
-        setResolvedAnalysisId(null);
-        setLoading(false);
-        return;
-      }
+    // Clear prior data before fetching new ID to avoid showing stale report from previous ID
+    setData(null);
+    setLoading(true);
 
-      setResolvedAnalysisId(requestedId);
-
-      const cacheKey = `udyam_cached_analysis_${userScope}_${requestedId}`;
-      const legacyKey = `udyam_cached_analysis_${requestedId}`;
-      let hasCachedData = false;
-
-      if (typeof window !== 'undefined') {
-        const cached = localStorage.getItem(cacheKey) || localStorage.getItem(legacyKey);
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (isValidAnalysisData(parsed) && parsed.analysis_id === requestedId) {
-              setData(parsed);
-              hasCachedData = true;
-            }
-          } catch (e) {}
+    // If valid user-scoped cached data is available for this exact requestedId, prime it immediately
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const parsedId = parsed?.analysis_id || (parsed as any)?.id;
+          if (isValidAnalysisData(parsed) && parsedId === requestedId) {
+            setData(parsed);
+          } else {
+            localStorage.removeItem(cacheKey);
+          }
+        } catch (e) {
+          console.warn('Could not parse offline cached analysis:', e);
+          localStorage.removeItem(cacheKey);
         }
       }
+    }
 
-      if (!hasCachedData) {
-        setData(null);
-        setLoading(true);
-      }
-
+    async function loadAnalysis() {
       try {
         const res = await getConsolidatedAnalysis(requestedId);
+        const resId = res?.analysis_id || (res as any)?.id;
         if (
           !isCancelled &&
           searchParams.get('analysis_id') === requestedId &&
           isValidAnalysisData(res) &&
-          res.analysis_id === requestedId
+          resId === requestedId
         ) {
           setData(res);
           if (typeof window !== 'undefined') {
@@ -121,7 +122,16 @@ function DashboardContent() {
         if (typeof window !== 'undefined' && err?.message?.includes('404')) {
           localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
           localStorage.removeItem(cacheKey);
-          localStorage.removeItem(legacyKey);
+        }
+        if (!isCancelled) {
+          // If no valid data is already loaded strictly matching requestedId, ensure data is null
+          setData((prev) => {
+            const prevId = prev?.analysis_id || (prev as any)?.id;
+            if (prev && isValidAnalysisData(prev) && prevId === requestedId) {
+              return prev;
+            }
+            return null;
+          });
         }
       } finally {
         if (!isCancelled) {
@@ -130,11 +140,11 @@ function DashboardContent() {
       }
     }
 
-    loadAnalysis();
+    void loadAnalysis();
     return () => {
       isCancelled = true;
     };
-  }, [analysisId, searchParams, userScope]);
+  }, [analysisId, userScope, searchParams]);
 
   const feas = data?.feasibility || {};
   const overallScore = feas.overall_score != null ? Math.round(feas.overall_score) : null;
@@ -249,7 +259,14 @@ function DashboardContent() {
           <div>
             <button
               type="button"
-              onClick={() => router.push('/dashboard')}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
+                  localStorage.removeItem('udyam_active_analysis_id');
+                }
+                setData(null);
+                router.push('/dashboard');
+              }}
               className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-[#1F242C] hover:bg-slate-200 dark:hover:bg-[#272D37] border border-slate-200 dark:border-[#2B313C] px-3.5 py-1 text-xs font-semibold text-foreground transition"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
