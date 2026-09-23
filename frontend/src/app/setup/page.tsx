@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, Loader2, UserRound, Building2, Mail } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import LanguageSwitcher from '@/components/ui/LanguageSwitcher';
@@ -24,20 +24,40 @@ const BUSINESS_TYPES = [
   { value: 'other', label: 'Other Enterprise' },
 ];
 
-export default function SetupPage() {
+function SetupContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isEditing = searchParams.get('edit') === 'true';
+
   const t = useLanguageStore((s) => s.t);
   const language = useLanguageStore((s) => s.language);
   const setLanguage = useLanguageStore((s) => s.setLanguage);
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
 
-  const [name, setName] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  const [businessType, setBusinessType] = useState('');
+  const [name, setName] = useState(profile?.name || '');
+  const [businessName, setBusinessName] = useState(profile?.business_name || '');
+  const [businessType, setBusinessType] = useState((profile as any)?.business_type || '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const email = user?.email ?? '';
+  const email = user?.email ?? profile?.email ?? '';
+
+  // Pre-fill fields when profile is loaded
+  useEffect(() => {
+    if (profile) {
+      if (profile.name) setName((prev: string) => prev || profile.name || '');
+      if (profile.business_name) setBusinessName((prev: string) => prev || profile.business_name || '');
+      if ((profile as any).business_type) setBusinessType((prev: string) => prev || (profile as any).business_type || '');
+      if (profile.preferred_language) setLanguage(profile.preferred_language as 'en' | 'hi' | 'mr');
+    }
+  }, [profile, setLanguage]);
+
+  // If user already has a complete profile and isn't explicitly editing, redirect to dashboard
+  useEffect(() => {
+    if (!isEditing && profile?.name && profile?.business_name) {
+      router.replace('/dashboard');
+    }
+  }, [profile, isEditing, router]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +78,7 @@ export default function SetupPage() {
         preferred_language: language,
       });
       storeProfile(savedProfile);
+      await refreshProfile();
       router.push('/dashboard');
     } catch (err) {
       console.error('Profile setup failed:', err);
@@ -216,5 +237,19 @@ export default function SetupPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+export default function SetupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <SetupContent />
+    </Suspense>
   );
 }
