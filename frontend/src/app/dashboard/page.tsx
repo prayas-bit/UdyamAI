@@ -16,8 +16,9 @@ import UserOverview from '@/components/dashboard/UserOverview';
 import { getConsolidatedAnalysis, downloadAnalysisPdf, ConsolidatedAnalysisData } from '@/lib/api';
 import { useTranslation } from '@/stores/languageStore';
 import Card from '@/components/ui/Card';
-import StatusBadge from '@/components/ui/StatusBadge';
+import StatusBadge, { StatusType } from '@/components/ui/StatusBadge';
 import { useSpeech } from '@/hooks/useSpeech';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const VALID_SECTIONS: DashboardSection[] = [
   'overview',
@@ -45,16 +46,18 @@ function isValidAnalysisData(obj: any): obj is ConsolidatedAnalysisData {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { profile, user } = useAuth();
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [data, setData] = useState<ConsolidatedAnalysisData | null>(null);
   const [resolvedAnalysisId, setResolvedAnalysisId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const { t } = useTranslation();
   const { isSpeaking, speakingId, toggleSpeak } = useSpeech();
 
   const analysisId = searchParams.get('analysis_id');
+  const userScope = profile?.id || user?.id || 'guest';
 
   useEffect(() => {
     const raw = searchParams.get('section');
@@ -62,67 +65,86 @@ function DashboardContent() {
   }, [analysisId, data?.analysis_id, searchParams]);
 
   useEffect(() => {
-    async function loadAnalysis() {
-      const targetId =
-        analysisId ||
-        (typeof window !== 'undefined' ? localStorage.getItem('udyam_active_analysis_id') : null);
+    // No analysis_id in URL → always show the Overview, never auto-load feasibility data
+    if (!analysisId) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
 
-      if (!targetId) {
-        // Try fallback to last cached analysis if available
-        if (typeof window !== 'undefined') {
-          const lastSaved = localStorage.getItem('udyam_latest_cached_analysis');
-          if (lastSaved) {
-            try {
-              const parsed = JSON.parse(lastSaved);
-              if (isValidAnalysisData(parsed)) {
-                setData(parsed);
-                setResolvedAnalysisId(parsed.analysis_id || null);
-              }
-            } catch (e) {
-              console.warn('Could not parse cached analysis:', e);
-            }
-          }
-        }
-        setLoading(false);
-        return;
-      }
+    let isCancelled = false;
+    const requestedId = analysisId;
+    const cacheKey = `udyam_cached_analysis_${userScope}_${requestedId}`;
 
-      setResolvedAnalysisId(targetId);
+    // Clear prior data before fetching new ID to avoid showing stale report from previous ID
+    setData(null);
+    setLoading(true);
 
-      try {
-        setLoading(true);
-        const res = await getConsolidatedAnalysis(targetId);
-        if (isValidAnalysisData(res)) {
-          setData(res);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(`udyam_cached_analysis_${targetId}`, JSON.stringify(res));
-            localStorage.setItem('udyam_latest_cached_analysis', JSON.stringify(res));
-            localStorage.setItem('udyam_active_analysis_id', targetId);
+    // If valid user-scoped cached data is available for this exact requestedId, prime it immediately
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const parsedId = parsed?.analysis_id || (parsed as any)?.id;
+          if (isValidAnalysisData(parsed) && parsedId === requestedId) {
+            setData(parsed);
+          } else {
+            localStorage.removeItem(cacheKey);
           }
+        } catch (e) {
+          console.warn('Could not parse offline cached analysis:', e);
+          localStorage.removeItem(cacheKey);
         }
-      } catch (err) {
-        console.warn('Failed to fetch fresh consolidated analysis, attempting offline cache fallback:', err);
-        if (typeof window !== 'undefined') {
-          const cached =
-            localStorage.getItem(`udyam_cached_analysis_${targetId}`) ||
-            localStorage.getItem('udyam_latest_cached_analysis');
-          if (cached) {
-            try {
-              const parsed = JSON.parse(cached);
-              if (isValidAnalysisData(parsed)) {
-                setData(parsed);
-              }
-            } catch (e) {
-              console.warn('Could not parse offline cached analysis:', e);
-            }
-          }
-        }
-      } finally {
-        setLoading(false);
       }
     }
-    loadAnalysis();
-  }, [analysisId]);
+
+    async function loadAnalysis() {
+      try {
+        const res = await getConsolidatedAnalysis(requestedId);
+        const resId = res?.analysis_id || (res as any)?.id;
+        if (
+          !isCancelled &&
+          searchParams.get('analysis_id') === requestedId &&
+          isValidAnalysisData(res) &&
+          resId === requestedId
+        ) {
+          setData(res);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(cacheKey, JSON.stringify(res));
+            localStorage.setItem(`udyam_latest_cached_analysis_${userScope}`, JSON.stringify(res));
+            localStorage.setItem(`udyam_active_analysis_id_${userScope}`, requestedId);
+          }
+        }
+      } catch (err: any) {
+        console.warn('Failed to fetch fresh consolidated analysis:', err);
+        // If analysis not found (404), purge stale keys from localStorage
+        if (typeof window !== 'undefined' && err?.message?.includes('404')) {
+          localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
+          localStorage.removeItem(cacheKey);
+        }
+        if (!isCancelled) {
+          // If no valid data is already loaded strictly matching requestedId, ensure data is null
+          setData((prev) => {
+            const prevId = prev?.analysis_id || (prev as any)?.id;
+            if (prev && isValidAnalysisData(prev) && prevId === requestedId) {
+              return prev;
+            }
+            return null;
+          });
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadAnalysis();
+    return () => {
+      isCancelled = true;
+    };
+  }, [analysisId, userScope, searchParams]);
 
   const feas = data?.feasibility || {};
   const overallScore = feas.overall_score != null ? Math.round(feas.overall_score) : null;
@@ -150,10 +172,18 @@ function DashboardContent() {
           ? t('dash.moderately')
           : t('dash.highRisk');
 
-  const locName = data?.location
-    ? `${data.location.village_name || data.location.name || ''}${data.location.district_name ? `, ${data.location.district_name}` : ''}`.trim()
-    : '';
-  const bizName = data?.business?.category_name || '';
+  const bizName =
+    data?.business?.category_name ||
+    (data as any)?.business_category?.name ||
+    (feas as any)?.business_name ||
+    '';
+  const locName = [
+    data?.location?.village_name || (feas as any)?.village_name,
+    data?.location?.taluka_name || (feas as any)?.taluka_name,
+    data?.location?.district_name || (feas as any)?.district_name,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   const advisorSummary = data?.ai_advice?.summary || feas.recommendation || '';
   const advisorRecommendations =
@@ -176,16 +206,19 @@ function DashboardContent() {
     }
   }
 
-  function getScoreStatus(score: number): 'verified' | 'warning' | 'risk' {
+  const getScoreStatus = (score: number | null): StatusType => {
+    if (score == null) return 'neutral';
     if (score >= 75) return 'verified';
     if (score >= 50) return 'warning';
     return 'risk';
-  }
+  };
 
   function ScoreCard({ label, score }: { label: string; score: number }) {
     return (
-      <Card padding="md" className="border-border bg-white dark:bg-[#161B22] rounded-2xl flex flex-col justify-between shadow-subtle hover:border-primary/30 transition-all">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+      <Card className="flex flex-col justify-between p-5 border border-border shadow-subtle hover:border-primary/40 transition">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+        </div>
         <div className="flex items-baseline justify-between mt-3">
           <div className="flex items-baseline gap-1">
             <span className="text-3xl font-extrabold font-financial text-foreground tracking-tight">
@@ -199,7 +232,7 @@ function DashboardContent() {
     );
   }
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <AppShell>
         <div className="flex flex-1 flex-col items-center justify-center p-12">
@@ -226,7 +259,14 @@ function DashboardContent() {
           <div>
             <button
               type="button"
-              onClick={() => router.push('/dashboard')}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
+                  localStorage.removeItem('udyam_active_analysis_id');
+                }
+                setData(null);
+                router.push('/dashboard');
+              }}
               className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-[#1F242C] hover:bg-slate-200 dark:hover:bg-[#272D37] border border-slate-200 dark:border-[#2B313C] px-3.5 py-1 text-xs font-semibold text-foreground transition"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
