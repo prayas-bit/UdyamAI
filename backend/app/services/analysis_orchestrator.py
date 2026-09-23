@@ -378,10 +378,13 @@ class AnalysisOrchestrator:
 
             mkt_indicators_pre = (
                 market_res.market_indicators
-                if hasattr(market_res, "market_indicators") and isinstance(market_res.market_indicators, dict)
+                if hasattr(market_res, "market_indicators")
+                and isinstance(market_res.market_indicators, dict)
                 else {}
             )
-            risk_pre = mkt_indicators_pre.get("risks") if isinstance(mkt_indicators_pre, dict) else None
+            risk_pre = (
+                mkt_indicators_pre.get("risks") if isinstance(mkt_indicators_pre, dict) else None
+            )
 
             feasibility_score_res = FeasibilityService.calculate_feasibility(
                 db,

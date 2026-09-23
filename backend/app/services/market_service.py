@@ -484,7 +484,24 @@ class MarketService:
             is_cat_seasonal = False
             if target_cat_name:
                 t_lower = target_cat_name.lower()
-                is_cat_seasonal = any(k in t_lower for k in ["crop", "farm", "fruit", "vegetable", "grain", "agro", "sugar", "cotton", "onion", "spice", "dairy", "poultry", "fish"])
+                is_cat_seasonal = any(
+                    k in t_lower
+                    for k in [
+                        "crop",
+                        "farm",
+                        "fruit",
+                        "vegetable",
+                        "grain",
+                        "agro",
+                        "sugar",
+                        "cotton",
+                        "onion",
+                        "spice",
+                        "dairy",
+                        "poultry",
+                        "fish",
+                    ]
+                )
 
             risk_res = assess_market_risks(
                 competition_density=comp_res["competition_density_per_km2"],

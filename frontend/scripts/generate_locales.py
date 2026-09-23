@@ -1,5 +1,4 @@
 import os
-import re
 
 locales_dir = "/home/prayas/Documents/sih/UdyamAI/frontend/src/lib/locales"
 os.makedirs(locales_dir, exist_ok=True)
@@ -341,14 +340,14 @@ TRANSLATIONS = {
         "schemes.badge": "സർക്കാർ ക്ഷേമ പദ്ധതികൾ",
         "schemes.title": "സംരംഭകത്വ സബ്‌സിഡിയും വായ്പാ പദ്ധതികളും",
         "schemes.desc": "ഇന്ത്യയിലുടനീളമുള്ള ഗ്രാമീണ, ചെറുകിട സംരംഭകർക്കായുള്ള സർക്കാർ സാമ്പത്തിക സഹായ പദ്ധതികൾ കണ്ടെത്തുക.",
-    }
+    },
 }
 
 for lang_code, dict_data in TRANSLATIONS.items():
     file_path = os.path.join(locales_dir, f"{lang_code}.ts")
     content = f"""import type {{ Dict }} from '../i18n';
 
-export const {lang_code}: Dict = {repr(dict_data)};
+export const {lang_code}: Dict = {dict_data!r};
 """
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
