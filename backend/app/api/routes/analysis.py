@@ -92,6 +92,11 @@ def download_analysis_pdf(id: UUID, db: Session = Depends(get_session)):
     run = AnalysisService.get_analysis_run(db, id)
     if not run:
         raise HTTPException(status_code=404, detail=f"Analysis run with id {id} not found")
+    if run.status in ("pending", "running", "created"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Analysis run with id {id} is currently {run.status}. PDF report cannot be generated until analysis is completed.",
+        )
 
     try:
         report_data = assemble_feasibility_report_data(db, id)

@@ -9,6 +9,7 @@ import Logo from '@/components/ui/Logo';
 import { createProfile } from '@/lib/api';
 import { storeProfile } from '@/lib/auth';
 import { useLanguageStore } from '@/stores/languageStore';
+import { LANGUAGE_OPTIONS, type Language } from '@/lib/i18n';
 
 const BUSINESS_TYPES = [
   { value: '', label: 'Select business category' },
@@ -48,7 +49,7 @@ function SetupContent() {
       if (profile.name) setName((prev: string) => prev || profile.name || '');
       if (profile.business_name) setBusinessName((prev: string) => prev || profile.business_name || '');
       if ((profile as any).business_type) setBusinessType((prev: string) => prev || (profile as any).business_type || '');
-      if (profile.preferred_language) setLanguage(profile.preferred_language as 'en' | 'hi' | 'mr');
+      if (profile.preferred_language) setLanguage(profile.preferred_language as Language);
     }
   }, [profile, setLanguage]);
 
@@ -198,12 +199,14 @@ function SetupContent() {
           <select
             id="setup-language"
             value={language}
-            onChange={(e) => setLanguage(e.target.value as 'en' | 'hi' | 'mr')}
+            onChange={(e) => setLanguage(e.target.value as Language)}
             className="mb-6 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 text-foreground"
           >
-            <option value="en">English (English)</option>
-            <option value="hi">हिंदी (Hindi)</option>
-            <option value="mr">मराठी (Marathi)</option>
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.nativeLabel} ({opt.englishLabel})
+              </option>
+            ))}
           </select>
 
           {error && (

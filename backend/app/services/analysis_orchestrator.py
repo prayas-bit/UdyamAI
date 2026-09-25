@@ -60,7 +60,18 @@ from app.services.scheme_service import SchemeService
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_LANGUAGES = {"en", "hi", "mr"}
+SUPPORTED_LANGUAGES = {
+    "en",
+    "hi",
+    "mr",
+    "ta",
+    "te",
+    "kn",
+    "gu",
+    "bn",
+    "pa",
+    "ml",
+}
 
 
 def _mark(label: str, started_at: float) -> float:

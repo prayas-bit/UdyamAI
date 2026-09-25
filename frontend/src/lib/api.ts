@@ -473,7 +473,16 @@ export async function waitForAnalysisCompletion(
   return latest;
 }
 
-export async function getConsolidatedAnalysis(analysisId: string): Promise<ConsolidatedAnalysisData> {
+export async function getConsolidatedAnalysis(
+  analysisId: string,
+  autoWait: boolean = true
+): Promise<ConsolidatedAnalysisData> {
+  if (autoWait) {
+    const latest = await waitForAnalysisCompletion(analysisId);
+    if (latest.status === 'failed') {
+      throw new Error('Analysis processing failed.');
+    }
+  }
   const res = await apiFetch(`${API_BASE_URL}/api/v1/analysis/${analysisId}/consolidated`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();

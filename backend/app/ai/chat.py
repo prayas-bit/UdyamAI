@@ -35,6 +35,41 @@ _FALLBACK_REPLIES = {
         "आपल्या परिसरासाठी अचूक विश्लेषण मिळवण्यासाठी ऑनबोर्डिंग करा आणि डॅशबोर्ड तपासा. "
         "लाइव्ह एआय सल्लागार जोडला जात आहे — कृपया पुन्हा विचारा."
     ),
+    "ta": (
+        "நான் உத்யம்AI அகில இந்திய உதவியாளர். தொழில் சாத்தியக்கூறு, சந்தைகள், "
+        "மத்திய மற்றும் மாநில அரசு மானியத் திட்டங்கள் (PMEGP, MUDRA போன்றவை) பற்றிய வழிகாட்டுதலை நான் வழங்குகிறேன். "
+        "லைவ் AI ஆலோசகர் இணைகிறது — சிறிது நேரத்தில் மீண்டும் முயற்சிக்கவும்."
+    ),
+    "te": (
+        "నేను ఉద్యమ్AI అఖిల భారత సహాయకుడిని. వ్యాపార సాధ్యత, సమీప మార్కెట్లు, "
+        "ప్రభుత్వ పథకాలు (PMEGP, MUDRA మొదలైనవి) మరియు ఆర్థిక ప్రణాళికలో నేను సహాయపడగలను. "
+        "లైవ్ AI సలహాదారు కనెక్ట్ అవుతోంది — దయచేసి కొద్దిసేపటి తర్వాత మళ్ళీ అడగండి."
+    ),
+    "kn": (
+        "ನಾನು ಉದ್ಯಮ್AI ಅಖಿಲ ಭಾರತ ಸಹಾಯಕ. ವ್ಯಾಪಾರ ಸಾಧ್ಯತೆ, ಮಾರುಕಟ್ಟೆಗಳು, "
+        "ಸರ್ಕಾರಿ ಯೋಜನೆಗಳು (PMEGP, MUDRA ಇತ್ಯಾದಿ) ಮತ್ತು ಆರ್ಥಿಕ ಯೋಜನೆಯಲ್ಲಿ ನಾನು ಸಹಾಯ ಮಾಡಬಲ್ಲೆ. "
+        "ಲೈವ್ AI ಸಲಹೆಗಾರ ಸಂಪರ್ಕಗೊಳ್ಳುತ್ತಿದ್ದಾನೆ — ದಯವಿಟ್ಟು ಸ್ವಲ್ಪ ಸಮಯದ ನಂತರ ಮತ್ತೆ ಕೇಳಿ."
+    ),
+    "gu": (
+        "હું ઉદ્યમAI અખિલ ભારતીય સહાયક છું. વ્યવસાયિક સંભાવ્યતા, સ્થાનિક બજારો, "
+        "સરકારી યોજનાઓ (PMEGP, MUDRA વગેરે) અને નાણાકીય આયોજનમાં હું મદદ કરી શકું છું. "
+        "લાઈવ AI સલાહકાર જોડાઈ રહ્યો છે — કૃપા કરીને થોડીવાર પછી ફરી પૂછો."
+    ),
+    "bn": (
+        "আমি উদ্যমAI সর্বভারতীয় সহায়ক। ব্যবসার সম্ভাব্যতা, স্থানীয় বাজার, "
+        "সরকারি প্রকল্প (PMEGP, MUDRA ইত্যাদি) এবং আর্থিক পরিকল্পনায় আমি আপনাকে সাহায্য করতে পারি। "
+        "লাইভ এআই উপদেষ্টা সংযুক্ত হচ্ছে — অনুগ্রহ করে কিছুক্ষণ পর আবার জিজ্ঞাসা করুন।"
+    ),
+    "pa": (
+        "ਮੈਂ ਉਦਯਮAI ਆਲ-ਇੰਡੀਆ ਸਹਾਇਕ ਹਾਂ। ਮੈਂ ਕਾਰੋਬਾਰੀ ਸੰਭਾਵਨਾ, ਮੰਡੀਆਂ, "
+        "ਸਰਕਾਰੀ ਸਕੀਮਾਂ (PMEGP, MUDRA ਆਦਿ) ਅਤੇ ਵਿੱਤੀ ਯੋਜਨਾਬੰਦੀ ਵਿੱਚ ਮਦਦ ਕਰ ਸਕਦਾ ਹਾਂ। "
+        "ਲਾਈਵ ਏਆਈ ਸਲਾਹਕਾਰ ਜੁੜ ਰਿਹਾ ਹੈ — ਕਿਰਪਾ ਕਰਕੇ ਕੁਝ ਸਮੇਂ ਬਾਅਦ ਦੁਬਾਰਾ ਪੁੱਛੋ।"
+    ),
+    "ml": (
+        "ഞാൻ ഉദ്യംAI അഖിലേന്ത്യാ സഹായിയാണ്. ബിസിനസ്സ് സാധ്യതകൾ, അടുത്തുള്ള വിപണികൾ, "
+        "സർക്കാർ പദ്ധതികൾ (PMEGP, MUDRA മുതലായവ), സാമ്പത്തിക ആസൂത്രണം എന്നിവയിൽ എനിക്ക് സഹായിക്കാനാകും. "
+        "ലൈവ് AI ഉപദേശകൻ ബന്ധിപ്പിക്കുന്നു — ദയവായി അല്പം കഴിഞ്ഞ് വീണ്ടും ചോദിക്കുക."
+    ),
 }
 
 
@@ -65,8 +100,8 @@ Rules:
 - Keep answers concise, clear, and structured (typically 2–6 sentences or clear bullet points) unless in-depth explanation is requested.
 - If specific local prices or subsidies vary by state/district, provide the standard range and encourage the user to verify in the UdyamAI Dashboard or local District Industries Centre (DIC) / bank branch.
 - Reply entirely in the user's requested language.
-- Language code: {language} (en = English, hi = Hindi, mr = Marathi).
-- If language is hi, write in fluent, natural Hindi (Devanagari). If mr, write in fluent, natural Marathi (Devanagari).
+- Language code: {language} (en = English, hi = Hindi, mr = Marathi, ta = Tamil, te = Telugu, kn = Kannada, gu = Gujarati, bn = Bengali, pa = Punjabi, ml = Malayalam).
+- Write in fluent, natural script and phrasing for the requested language.
 
 Conversation so far:
 {history_block}

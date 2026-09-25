@@ -44,6 +44,8 @@ function isValidAnalysisData(obj: any): obj is ConsolidatedAnalysisData {
   return !!(
     obj &&
     typeof obj === 'object' &&
+    obj.status !== 'pending' &&
+    obj.status !== 'running' &&
     (obj.feasibility || obj.analysis_id || obj.business)
   );
 }
@@ -51,7 +53,14 @@ function isValidAnalysisData(obj: any): obj is ConsolidatedAnalysisData {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { profile, user } = useAuth();
+  const { profile, user, loading: authLoading } = useAuth();
+
+  // If authenticated user has not completed profile setup, redirect to /setup
+  useEffect(() => {
+    if (!authLoading && user && (!profile?.name || !profile?.business_name)) {
+      router.replace('/setup');
+    }
+  }, [authLoading, user, profile, router]);
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [data, setData] = useState<ConsolidatedAnalysisData | null>(null);
   const [resolvedAnalysisId, setResolvedAnalysisId] = useState<string | null>(null);
@@ -106,7 +115,7 @@ function DashboardContent() {
 
     async function loadAnalysis() {
       try {
-        const res = await getConsolidatedAnalysis(requestedId);
+        const res = await getConsolidatedAnalysis(requestedId, true);
         const resId = res?.analysis_id || (res as any)?.id;
         if (
           !isCancelled &&

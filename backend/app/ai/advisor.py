@@ -28,9 +28,12 @@ def _as_string_list(value: Any) -> list[str]:
     return [str(item).strip() for item in value if item is not None and str(item).strip()]
 
 
+_ALLOWED_LANGUAGES = {"en", "hi", "mr", "ta", "te", "kn", "gu", "bn", "pa", "ml"}
+
+
 def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "en") -> AIAdvice:
     """Build advisory guidance from verified backend analysis when the LLM is unavailable."""
-    normalized_language = language if language in {"en", "hi", "mr"} else "en"
+    normalized_language = language if language in _ALLOWED_LANGUAGES else "en"
     location = prepared_context.get("location", {}) or {}
     business = prepared_context.get("business", {}) or {}
     feasibility = prepared_context.get("feasibility", {}) or {}
@@ -175,7 +178,7 @@ def _backend_grounded_advice(prepared_context: dict[str, Any], language: str = "
 
 
 def _fallback_ai_advice(language: str = "en") -> AIAdvice:
-    normalized_language = language if language in {"en", "hi", "mr"} else "en"
+    normalized_language = language if language in _ALLOWED_LANGUAGES else "en"
     return AIAdvice(
         summary="AI advisory guidance is temporarily unavailable. The backend analysis remains the authoritative source of truth.",
         recommendation="Review the verified backend analysis before making a final decision. Retry the AI advisory layer once the provider is available.",
