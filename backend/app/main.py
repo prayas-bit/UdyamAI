@@ -9,6 +9,7 @@ from app.api.routes import (
     businesses,
     chat,
     dashboard,
+    demo,
     economic,
     feasibility,
     finance,
@@ -21,7 +22,9 @@ from app.api.routes import (
     reports,
     schemes,
     users,
+    voice,
     weather,
+    whatsapp,
 )
 from app.config import settings
 from app.utils.errors import setup_exception_handlers
@@ -62,6 +65,18 @@ app.include_router(
     health.router,
     prefix="/api/v1/health",
     tags=["Health"],
+    include_in_schema=False,
+)
+
+# WhatsApp/Twilio is an inbound third-party channel, not part of the versioned frontend
+# contract. Deliberately no default_limiter: it keys on the client IP and Twilio's
+# egress IPs are shared, so it would throttle every tenant at once (see
+# app/api/routes/whatsapp.py, which throttles per sender instead).
+app.include_router(whatsapp.router, prefix="/webhooks", tags=["WhatsApp"])
+app.include_router(
+    whatsapp.router,
+    prefix="/api/v1/webhooks",
+    tags=["WhatsApp"],
     include_in_schema=False,
 )
 
@@ -286,6 +301,30 @@ app.include_router(
     tags=["Economic"],
     include_in_schema=False,
     dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    voice.router,
+    prefix="/voice",
+    tags=["Voice"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    voice.router,
+    prefix="/api/v1/voice",
+    tags=["Voice"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    demo.router,
+    prefix="/demo",
+    tags=["Demo"],
+)
+app.include_router(
+    demo.router,
+    prefix="/api/v1/demo",
+    tags=["Demo"],
+    include_in_schema=False,
 )
 
 

@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, Sparkles, AlertTriangle, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Loader2, Sparkles, ArrowLeft, Download, FileText, CheckCircle2, Volume2, VolumeX, ShieldCheck } from 'lucide-react';
 import AppShell from '@/components/ui/AppShell';
 import DashboardNav, { DashboardSection } from '@/components/dashboard/DashboardNav';
 import FinancialSection from '@/components/dashboard/FinancialSection';
@@ -12,8 +13,17 @@ import SchemeSection from '@/components/dashboard/SchemeSection';
 import RiskSection from '@/components/dashboard/RiskSection';
 import MapContainer from '@/components/maps/MapContainer';
 import UserOverview from '@/components/dashboard/UserOverview';
-import { getConsolidatedAnalysis, downloadAnalysisPdf, ConsolidatedAnalysisData } from '@/lib/api';
-import { useLanguageStore } from '@/stores/languageStore';
+import {
+  getConsolidatedAnalysis,
+  downloadAnalysisPdf,
+  waitForAnalysisCompletion,
+  ConsolidatedAnalysisData,
+} from '@/lib/api';
+import { useTranslation } from '@/stores/languageStore';
+import Card from '@/components/ui/Card';
+import StatusBadge, { StatusType } from '@/components/ui/StatusBadge';
+import { useSpeech } from '@/hooks/useSpeech';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const VALID_SECTIONS: DashboardSection[] = [
   'overview',
@@ -30,48 +40,116 @@ function isDashboardSection(value: string | null): value is DashboardSection {
   return value != null && (VALID_SECTIONS as string[]).includes(value);
 }
 
+function isValidAnalysisData(obj: any): obj is ConsolidatedAnalysisData {
+  return !!(
+    obj &&
+    typeof obj === 'object' &&
+    (obj.feasibility || obj.analysis_id || obj.business)
+  );
+}
+
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { profile, user } = useAuth();
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [data, setData] = useState<ConsolidatedAnalysisData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [resolvedAnalysisId, setResolvedAnalysisId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  const t = useLanguageStore((s) => s.t);
+  const { t } = useTranslation();
+  const { isSpeaking, speakingId, toggleSpeak } = useSpeech();
 
   const analysisId = searchParams.get('analysis_id');
+  const userScope = profile?.id || user?.id || 'guest';
 
-  // Apply ?section= (e.g. from the overview's scheme rows) once the data for
-  // the target analysis run is available.
   useEffect(() => {
     const raw = searchParams.get('section');
     setActiveSection(isDashboardSection(raw) ? raw : 'overview');
   }, [analysisId, data?.analysis_id, searchParams]);
 
   useEffect(() => {
-    async function loadAnalysis() {
-      if (!analysisId) {
-        setLoading(false);
-        return;
-      }
-      try {
-        setLoading(true);
-        const res = await getConsolidatedAnalysis(analysisId);
-        setData(res);
-      } catch (err) {
-        console.warn('Failed to fetch consolidated analysis:', err);
-        // The stored run may no longer exist (or belong to this user) -
-        // drop it so we fall back to the personal overview instead.
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('udyam_active_analysis_id');
+    // No analysis_id in URL → always show the Overview, never auto-load feasibility data
+    if (!analysisId) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
+    let isCancelled = false;
+    const requestedId = analysisId;
+    const cacheKey = `udyam_cached_analysis_${userScope}_${requestedId}`;
+
+    // Clear prior data before fetching new ID to avoid showing stale report from previous ID
+    setData(null);
+    setLoading(true);
+
+    // If valid user-scoped cached data is available for this exact requestedId, prime it immediately
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const parsedId = parsed?.analysis_id || (parsed as any)?.id;
+          if (isValidAnalysisData(parsed) && parsedId === requestedId) {
+            setData(parsed);
+          } else {
+            localStorage.removeItem(cacheKey);
+          }
+        } catch (e) {
+          console.warn('Could not parse offline cached analysis:', e);
+          localStorage.removeItem(cacheKey);
         }
-      } finally {
-        setLoading(false);
       }
     }
-    loadAnalysis();
-  }, [analysisId]);
+
+    async function loadAnalysis() {
+      try {
+        const res = await getConsolidatedAnalysis(requestedId);
+        const resId = res?.analysis_id || (res as any)?.id;
+        if (
+          !isCancelled &&
+          searchParams.get('analysis_id') === requestedId &&
+          isValidAnalysisData(res) &&
+          resId === requestedId
+        ) {
+          setData(res);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(cacheKey, JSON.stringify(res));
+            localStorage.setItem(`udyam_latest_cached_analysis_${userScope}`, JSON.stringify(res));
+            localStorage.setItem(`udyam_active_analysis_id_${userScope}`, requestedId);
+          }
+        }
+      } catch (err: any) {
+        console.warn('Failed to fetch fresh consolidated analysis:', err);
+        // If analysis not found (404), purge stale keys from localStorage
+        if (typeof window !== 'undefined' && err?.message?.includes('404')) {
+          localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
+          localStorage.removeItem(cacheKey);
+        }
+        if (!isCancelled) {
+          // If no valid data is already loaded strictly matching requestedId, ensure data is null
+          setData((prev) => {
+            const prevId = prev?.analysis_id || (prev as any)?.id;
+            if (prev && isValidAnalysisData(prev) && prevId === requestedId) {
+              return prev;
+            }
+            return null;
+          });
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadAnalysis();
+    return () => {
+      isCancelled = true;
+    };
+  }, [analysisId, userScope, searchParams]);
 
   const feas = data?.feasibility || {};
   const overallScore = feas.overall_score != null ? Math.round(feas.overall_score) : null;
@@ -99,10 +177,18 @@ function DashboardContent() {
           ? t('dash.moderately')
           : t('dash.highRisk');
 
-  const locName = data?.location
-    ? `${data.location.village_name || data.location.name || ''}${data.location.district_name ? `, ${data.location.district_name}` : ''}`.trim()
-    : '';
-  const bizName = data?.business?.category_name || '';
+  const bizName =
+    data?.business?.category_name ||
+    (data as any)?.business_category?.name ||
+    (feas as any)?.business_name ||
+    '';
+  const locName = [
+    data?.location?.village_name || (feas as any)?.village_name,
+    data?.location?.taluka_name || (feas as any)?.taluka_name,
+    data?.location?.district_name || (feas as any)?.district_name,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   const advisorSummary = data?.ai_advice?.summary || feas.recommendation || '';
   const advisorRecommendations =
@@ -110,12 +196,14 @@ function DashboardContent() {
     data?.ai_advice?.financial_advice ||
     (data?.ai_advice?.recommendation ? [data.ai_advice.recommendation] : []);
 
+  const effectiveAnalysisId = analysisId || resolvedAnalysisId || data?.analysis_id;
+
   async function handleDownloadPdf() {
-    if (!analysisId) return;
+    if (!effectiveAnalysisId) return;
     try {
       setPdfLoading(true);
       setPdfError(null);
-      await downloadAnalysisPdf(analysisId);
+      await downloadAnalysisPdf(effectiveAnalysisId);
     } catch (err: any) {
       setPdfError(err?.message || 'Failed to download PDF report.');
     } finally {
@@ -123,53 +211,44 @@ function DashboardContent() {
     }
   }
 
-function getScoreColor(score: number) {
-  if (score >= 75) return 'text-status-verified bg-primary/10';
-  if (score >= 50) return 'text-status-warning bg-accent/15';
-  return 'text-status-risk bg-danger/10';
-}
-
- function getRiskColor(level: string) {
-  switch (level) {
-    case 'low':
-      return 'text-status-verified bg-primary/10';
-    case 'medium':
-      return 'text-status-warning bg-accent/15';
-    case 'high':
-      return 'text-status-risk bg-danger/10';
-    default:
-      return 'text-foreground/60 bg-foreground/5';
-  }
-}
+  const getScoreStatus = (score: number | null): StatusType => {
+    if (score == null) return 'neutral';
+    if (score >= 75) return 'verified';
+    if (score >= 50) return 'warning';
+    return 'risk';
+  };
 
   function ScoreCard({ label, score }: { label: string; score: number }) {
     return (
-      <div className="rounded-card border border-primary/10 p-4 flex flex-col gap-2 bg-white shadow-card">
-        <span className="text-sm font-medium text-foreground/60">{label}</span>
-        <div className="flex items-baseline gap-1">
-          <span className={`text-metric-lg rounded-md px-2 ${getScoreColor(score)}`}>
-            {score}
-          </span>
-          <span className="text-sm text-foreground/50">/100</span>
+      <Card className="flex flex-col justify-between p-5 border border-border shadow-subtle hover:border-primary/40 transition">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
         </div>
-      </div>
+        <div className="flex items-baseline justify-between mt-3">
+          <div className="flex items-baseline gap-1">
+            <span className="text-3xl font-extrabold font-financial text-foreground tracking-tight">
+              {score}
+            </span>
+            <span className="text-xs font-medium text-muted-foreground">/ 100</span>
+          </div>
+          <StatusBadge status={getScoreStatus(score)} label={score >= 75 ? 'Strong' : score >= 50 ? 'Moderate' : 'Risk'} size="sm" />
+        </div>
+      </Card>
     );
   }
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <AppShell>
-        <div className="flex flex-1 flex-col items-center justify-center p-6">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-          <p className="text-slate-600 font-medium">{t('dash.loading')}</p>
+        <div className="flex flex-1 flex-col items-center justify-center p-12">
+          <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground font-medium text-sm">{t('dash.loading')}</p>
         </div>
       </AppShell>
     );
   }
 
-  // No analysis open (or it could not be loaded) -> the personalised
-  // overview of the tools, schemes and reports the user has opted into.
-  if (!analysisId || !data) {
+  if (!data) {
     return (
       <AppShell>
         <UserOverview />
@@ -179,29 +258,45 @@ function getScoreColor(score: number) {
 
   return (
     <AppShell>
-      <main className="p-6 max-w-5xl mx-auto flex flex-col gap-4 w-full flex-1">
+      <main className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto flex flex-col gap-6 w-full flex-1">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-5 gap-3">
           <div>
             <button
               type="button"
-              onClick={() => router.push('/dashboard')}
-              className="mb-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 hover:text-slate-900"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
+                  localStorage.removeItem('udyam_active_analysis_id');
+                }
+                setData(null);
+                router.push('/dashboard');
+              }}
+              className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-[#1F242C] hover:bg-slate-200 dark:hover:bg-[#272D37] border border-slate-200 dark:border-[#2B313C] px-3.5 py-1 text-xs font-semibold text-foreground transition"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Personal Dashboard
+              Back to Overview
             </button>
-            <h1 className="text-3xl font-bold text-slate-900">{t('dash.title')}</h1>
-            <p className="text-gray-600 mt-1 font-medium">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">{t('dash.title')}</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm mt-1 font-medium">
               {bizName || t('dash.pendingBiz')} •{' '}
-              <span className="text-blue-600 font-semibold">{locName || t('dash.pendingLoc')}</span>
+              <span className="text-primary font-semibold">{locName || t('dash.pendingLoc')}</span>
             </p>
           </div>
-          {analysisId && (
-            <div className="mt-2 sm:mt-0 text-xs font-mono bg-slate-100 px-3 py-1.5 rounded-lg border text-slate-600">
-              ID: {String(analysisId).slice(0, 8)}...
-            </div>
-          )}
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/onboarding"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/20 px-3.5 py-1.5 text-xs font-semibold text-primary transition"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Switch State / New Feasibility
+            </Link>
+            {effectiveAnalysisId && (
+              <div className="text-xs font-mono font-medium bg-slate-100 dark:bg-[#1F242C] text-foreground-muted px-3.5 py-1.5 rounded-full border border-border">
+                Run #{String(effectiveAnalysisId).slice(0, 8)}
+              </div>
+            )}
+          </div>
         </div>
 
         <DashboardNav activeSection={activeSection} onSectionChange={setActiveSection} />
@@ -209,16 +304,23 @@ function getScoreColor(score: number) {
         {activeSection === 'overview' && (
           <div className="flex flex-col gap-6">
             {/* Overall feasibility banner */}
-            <div className="rounded-card border border-primary/10 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white shadow-card gap-4">
-              <div>
-                <span className="text-sm font-medium text-gray-500">{t('dash.overall')}</span>
-                <div className="text-metric-xl mt-1 text-foreground">
-                  {overallScore != null ? `${overallScore}/100` : (data?.ai_advice?.confidence ? `AI: ${data.ai_advice.confidence}` : '—')}
+            <div className="relative overflow-hidden rounded-[24px] border border-border bg-white dark:bg-[#161B22] p-6 sm:p-8 shadow-subtle">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t('dash.overall')}</span>
+                  <div className="text-4xl sm:text-5xl font-extrabold font-financial text-foreground mt-2 tracking-tight">
+                    {overallScore != null ? `${overallScore}/100` : (data?.ai_advice?.confidence ? `AI: ${data.ai_advice.confidence}` : '—')}
+                  </div>
+                  <span className="text-primary font-semibold text-sm sm:text-base block mt-2">{label}</span>
                 </div>
-                <span className="text-primary font-semibold">{label}</span>
-              </div>
-              <div className={`px-4 py-2 rounded-lg font-semibold text-sm ${getRiskColor(riskLevelKey)}`}>
-                {riskLevelLabel} {t('dash.riskProfile')}
+                <div className="shrink-0">
+                  <StatusBadge
+                    status={riskLevelKey === 'low' ? 'verified' : riskLevelKey === 'medium' ? 'warning' : 'risk'}
+                    label={`${riskLevelLabel} ${t('dash.riskProfile')}`}
+                    size="lg"
+                  />
+                </div>
               </div>
             </div>
 
@@ -232,54 +334,98 @@ function getScoreColor(score: number) {
 
             {/* Analysis Data Status */}
             {overallScore == null && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">Analysis Data Status</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${data?.financial ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-slate-600">Financial</span>
+              <div className="rounded-2xl border border-border bg-slate-50/70 dark:bg-[#1C2128]/70 p-5">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Analysis Data Readiness</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-semibold">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${data?.financial ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="text-foreground">Financial Model</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${data?.market ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-slate-600">Market</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${data?.market ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="text-foreground">Market Demand</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${data?.competition ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-slate-600">Competition</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${data?.competition ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="text-foreground">Competition Density</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${data?.ai_advice?.model_name && data.ai_advice.model_name !== 'unavailable' ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-slate-600">AI Advisor</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${data?.ai_advice?.model_name && data.ai_advice.model_name !== 'unavailable' ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="text-foreground flex items-center gap-1.5">
+                      AI Intelligence
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                        <ShieldCheck className="h-3 w-3" /> {t('dash.ragVerified', 'Verified by RAG')}
+                      </span>
+                    </span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* AI Advisor Recommendations (RAG Evidence Driven) */}
-            <div className="rounded-card border border-primary/15 bg-primary/5 p-6 shadow-card">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-bold text-foreground">{t('dash.advisorTitle')}</h3>
-              </div>
-              <p className="text-sm leading-relaxed text-slate-700 font-normal">
-                {advisorSummary || t('dash.advisorEmpty')}
-              </p>
-              {data?.ai_advice?.recommendation && (
-                <p className="mt-3 text-sm font-medium text-slate-800">
-                  {data.ai_advice.recommendation}
-                </p>
-              )}
-              {advisorRecommendations.length > 0 && (
-                <div className="mt-4 space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('dash.recommendations')}</h4>
-                  <ul className="list-disc list-inside text-sm text-slate-800 space-y-1">
-                    {advisorRecommendations.map((rec, i) => (
-                      <li key={i}>{rec}</li>
-                    ))}
-                  </ul>
+            {/* AI Advisor Strategic Summary */}
+            {advisorSummary && (
+              <Card padding="lg" className="border-border bg-white dark:bg-[#161B22] rounded-[24px] shadow-subtle">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <h3 className="text-base font-bold text-foreground">{t('dash.aiAdvisor', 'AI Advisor Intelligence (RAG Verified)')}</h3>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shadow-xs">
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      {t('dash.ragVerified', 'Verified by RAG')}
+                    </span>
+                  </div>
+
+                  {/* Read Aloud Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fullAdviceText = `${advisorSummary}. Next steps: ${advisorRecommendations.join('. ')}`;
+                      toggleSpeak(fullAdviceText, 'dashboard-advice');
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition ${
+                      isSpeaking && speakingId === 'dashboard-advice'
+                        ? 'bg-primary text-white animate-pulse'
+                        : 'bg-slate-100 dark:bg-slate-800 text-foreground hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                    title={isSpeaking && speakingId === 'dashboard-advice' ? 'Stop audio' : 'Listen to AI summary'}
+                  >
+                    {isSpeaking && speakingId === 'dashboard-advice' ? (
+                      <>
+                        <VolumeX className="h-3.5 w-3.5 text-white" />
+                        <span>Stop Audio</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-3.5 w-3.5 text-primary" />
+                        <span>Read Aloud</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              )}
-            </div>
+                <p className="text-foreground-muted text-sm leading-relaxed whitespace-pre-line">{advisorSummary}</p>
+              </Card>
+            )}
+
+            {/* Recommendations / Next Steps */}
+            {advisorRecommendations.length > 0 && (
+              <Card padding="lg" className="border-border bg-white dark:bg-[#161B22] rounded-[24px] shadow-subtle">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-bold text-foreground">{t('dash.nextSteps', 'Recommended Strategic Next Steps')}</h3>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    {t('dash.ragVerified', 'Verified by RAG')}
+                  </span>
+                </div>
+                <ul className="space-y-3">
+                  {advisorRecommendations.map((rec: string, i: number) => (
+                    <li key={i} className="flex items-start gap-3 text-sm text-foreground-muted">
+                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
           </div>
         )}
 
@@ -292,16 +438,19 @@ function getScoreColor(score: number) {
         {activeSection === 'schemes' && <SchemeSection data={data} />}
         {activeSection === 'risks' && <RiskSection data={data} />}
         {activeSection === 'report' && (
-          <div className="rounded-xl border border-gray-200 p-8 bg-white shadow-sm text-center">
-            <h3 className="text-xl font-bold text-slate-900 mb-2">{t('dash.pdfTitle')}</h3>
-            <p className="text-sm text-slate-500 mb-4">{t('dash.pdfDesc')}</p>
+          <div className="rounded-[28px] border border-border bg-white dark:bg-[#161B22] p-8 sm:p-12 text-center shadow-subtle">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 text-primary border border-primary/20 mx-auto flex items-center justify-center mb-5">
+              <FileText className="h-8 w-8" />
+            </div>
+            <h3 className="text-2xl font-extrabold text-foreground mb-2">{t('dash.pdfTitle')}</h3>
+            <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto leading-relaxed">{t('dash.pdfDesc')}</p>
             {pdfError && (
-              <p className="text-sm text-red-600 mb-3">{pdfError}</p>
+              <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 mb-4">{pdfError}</p>
             )}
             <button
               onClick={handleDownloadPdf}
-              disabled={!analysisId || pdfLoading}
-              className="px-6 py-2.5 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 transition disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              disabled={!effectiveAnalysisId || pdfLoading}
+              className="px-8 py-3.5 bg-primary text-white rounded-full text-sm font-semibold shadow-fintech-btn hover:bg-primary-600 transition disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               {pdfLoading ? (
                 <>
@@ -309,7 +458,10 @@ function getScoreColor(score: number) {
                   {t('dash.pdfDownloading')}
                 </>
               ) : (
-                t('dash.pdfButton')
+                <>
+                  <Download className="h-4 w-4" />
+                  {t('dash.pdfButton')}
+                </>
               )}
             </button>
           </div>
@@ -321,7 +473,7 @@ function getScoreColor(score: number) {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
       <DashboardContent />
     </Suspense>
   );

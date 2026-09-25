@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Award, CheckCircle2, Building2, ExternalLink, ShieldAlert, Landmark, Sparkles } from 'lucide-react';
+import { Award, CheckCircle2, Building2, ExternalLink, Landmark, Sparkles, ShieldCheck } from 'lucide-react';
 
 interface SchemeSectionProps {
   data?: any;
@@ -19,13 +19,13 @@ function SummaryCard({
   icon?: any;
 }) {
   return (
-    <div className="rounded-card border border-primary/10 bg-white p-5 shadow-card">
+    <div className="rounded-2xl border border-border bg-white dark:bg-[#161B22] p-5 shadow-subtle hover:border-primary/30 transition-all">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-foreground/60">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
         {Icon && <Icon className="h-5 w-5 text-primary" />}
       </div>
-      <h3 className="mt-2 text-2xl font-extrabold text-foreground">{value}</h3>
-      <p className="mt-1 text-xs text-foreground/60">{subtitle}</p>
+      <h3 className="mt-2 text-2xl font-extrabold font-financial text-foreground">{value}</h3>
+      <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
     </div>
   );
 }
@@ -34,14 +34,14 @@ function getEligibilityBadge(status: string) {
   const s = String(status || '').toLowerCase();
 
   if (s.includes('high') || s.includes('eligible') || s === 'potential_match') {
-    return 'bg-primary/10 text-status-verified border-primary/20';
+    return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800';
   }
 
   if (s.includes('partial') || s.includes('moderate')) {
-    return 'bg-accent/15 text-status-warning border-accent/30';
+    return 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800';
   }
 
-  return 'bg-danger/10 text-status-risk border-danger/20';
+  return 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800';
 }
 
 function formatCurrency(amount: number) {
@@ -91,37 +91,52 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
       </div>
 
       {/* Main Scheme List */}
-      <div className="rounded-card border border-primary/10 bg-white p-6 shadow-card">
-        <div className="flex items-center justify-between mb-4 border-b border-primary/10 pb-3">
+      <div className="rounded-2xl border border-border bg-white dark:bg-[#161B22] p-6 shadow-subtle">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 border-b border-border pb-4">
           <div>
-            <h3 className="text-lg font-bold text-foreground">
-              Government Welfare & Capital Subsidy Schemes
-            </h3>
-            <p className="text-xs text-foreground/60 mt-0.5">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-bold text-foreground tracking-tight">
+                Government Welfare & Capital Subsidy Schemes
+              </h3>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                <ShieldCheck className="h-3 w-3" /> Verified by RAG
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Verified eligibility against state & national enterprise guidelines
             </p>
           </div>
-          <span className="text-xs font-semibold px-3 py-1 bg-primary/10 text-status-verified border border-primary/20 rounded-full flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Direct Govt. Support
-          </span>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-full flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Direct Govt. Support
+            </span>
+            <span className="sm:hidden inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+              <ShieldCheck className="h-3 w-3" /> Verified by RAG
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-col gap-4">
           {matchedSchemes.length === 0 && schemeAdviceList.length === 0 && (
-            <p className="text-sm text-foreground/70">
+            <p className="text-sm text-muted-foreground py-4">
               No government schemes matched this analysis. Import scheme data and rerun the analysis pipeline.
             </p>
           )}
 
           {/* AI Scheme Guidance (when no schemes matched but AI has advice) */}
           {matchedSchemes.length === 0 && schemeAdviceList.length > 0 && (
-            <div className="rounded-card border border-primary/15 bg-primary/5 p-5 shadow-card">
-              <p className="text-xs font-bold uppercase tracking-wider text-primary mb-2">
-                AI Scheme Guidance
-              </p>
-              <ul className="space-y-1.5">
+            <div className="rounded-2xl border border-primary/20 dark:border-primary/30 bg-primary/5 dark:bg-primary/10 p-6 shadow-subtle">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-primary">
+                  AI Scheme Guidance
+                </p>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                  <ShieldCheck className="h-3 w-3" /> Verified by RAG
+                </span>
+              </div>
+              <ul className="space-y-2">
                 {schemeAdviceList.map((advice: string, i: number) => (
-                  <li key={i} className="text-sm text-foreground flex items-start gap-1.5">
+                  <li key={i} className="text-sm text-foreground flex items-start gap-2">
                     <span className="text-primary font-bold mt-0.5">•</span>
                     <span>{advice}</span>
                   </li>
@@ -138,43 +153,50 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
             return (
               <div
                 key={s.scheme_id || idx}
-                className="rounded-card border border-primary/10 bg-background p-5 hover:bg-primary/5 hover:border-primary/20 transition shadow-card flex flex-col gap-3"
+                className="rounded-2xl border border-border bg-slate-50/50 dark:bg-[#1C2128]/70 p-5 hover:bg-slate-50 dark:hover:bg-[#1C2128] hover:border-primary/30 transition shadow-subtle flex flex-col gap-3.5"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-primary/10 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-primary shrink-0" />
-                    <h4 className="font-bold text-foreground text-base">{title}</h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-[#2B313C] pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Building2 className="h-4 w-4" />
+                    </div>
+                    <h4 className="font-bold text-foreground text-sm sm:text-base">{title}</h4>
                   </div>
-                  <span
-                    className={`inline-flex items-center px-3 py-1 text-xs font-bold rounded-full border ${getEligibilityBadge(
-                      s.match_status
-                    )}`}
-                  >
-                    {statusLabel}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                      <ShieldCheck className="h-3 w-3" /> Verified by RAG
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-3 py-1 text-xs font-bold rounded-full border ${getEligibilityBadge(
+                        s.match_status
+                      )}`}
+                    >
+                      {statusLabel}
+                    </span>
+                  </div>
                 </div>
 
                 {s.description && (
-                  <p className="text-sm text-foreground/70 leading-relaxed">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
                     {s.description}
                   </p>
                 )}
 
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     {subsidy > 0 && (
-                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 text-status-verified border border-primary/20">
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold">
                         Capital Subsidy: {formatCurrency(subsidy)}
                       </span>
                     )}
                     {loan > 0 && (
-                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent/15 text-status-warning text-xs font-bold border border-accent/30">
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold border border-amber-200 dark:border-amber-800">
                         Loan Coverage: {formatCurrency(loan)}
                       </span>
                     )}
                     {s.agency_name && (
-                      <span className="text-xs text-foreground/60 font-medium">
-                        Nodal Agency: <strong className="text-foreground/70">{s.agency_name}</strong>
+                      <span className="text-xs text-muted-foreground font-medium">
+                        Nodal Agency: <strong className="text-foreground">{s.agency_name}</strong>
                       </span>
                     )}
                   </div>
@@ -184,7 +206,7 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
                       href={s.official_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary/80 hover:underline transition"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-600 transition"
                     >
                       Official Portal <ExternalLink className="h-3.5 w-3.5" />
                     </a>

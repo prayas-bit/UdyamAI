@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
@@ -25,7 +25,7 @@ class District(SQLModel, table=True):
     name: str = Field(nullable=False)
     state: str = Field(default="Maharashtra", nullable=False)
     lgd_code: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     talukas: list["Taluka"] = Relationship(back_populates="district")
@@ -40,7 +40,7 @@ class Taluka(SQLModel, table=True):
     name: str = Field(nullable=False)
     district_id: UUID = Field(foreign_key="districts.id", nullable=False)
     lgd_code: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     district: District = Relationship(back_populates="talukas")
@@ -56,7 +56,7 @@ class GramPanchayat(SQLModel, table=True):
     taluka_id: UUID = Field(foreign_key="talukas.id", nullable=False)
     district_id: UUID = Field(foreign_key="districts.id", nullable=False)
     lgd_code: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     district: District = Relationship(back_populates="gram_panchayats")
@@ -83,7 +83,14 @@ class Village(SQLModel, table=True):
         ),
     )
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Provenance fields. `source` describes where the row came from; the coordinate
+    # columns are derived from the taluka polygon rather than surveyed, which the
+    # `coordinate_precision` column makes explicit.
+    source: str | None = Field(default=None)
+    source_url: str | None = Field(default=None)
+    coordinate_precision: str | None = Field(default=None)
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     district: District = Relationship(back_populates="villages")
@@ -123,7 +130,7 @@ class Population(SQLModel, table=True):
     source: str | None = Field(default=None)
     source_url: str | None = Field(default=None)
     data_year: int | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     location: Village = Relationship(back_populates="population_records")

@@ -97,7 +97,7 @@ export interface StartAnalysisRequest {
   business_category_id: string;
   available_capital: number;
   desired_project_cost: number;
-  language?: 'en' | 'hi' | 'mr';
+  language?: string;
 }
 
 export interface ConsolidatedAnalysisData {
@@ -332,9 +332,22 @@ export async function getDashboardOverview(): Promise<DashboardOverviewData> {
   return res.json();
 }
 
-export async function getDistricts(): Promise<District[]> {
+export async function getStates(): Promise<string[]> {
   try {
-    const res = await apiFetch(`${API_BASE_URL}/api/v1/locations/districts`);
+    const res = await apiFetch(`${API_BASE_URL}/api/v1/locations/states`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('Failed to fetch states from API, using fallback:', err);
+    return [];
+  }
+}
+
+export async function getDistricts(state?: string): Promise<District[]> {
+  try {
+    const query = state && state.trim() ? `?state=${encodeURIComponent(state.trim())}` : '';
+    const res = await apiFetch(`${API_BASE_URL}/api/v1/locations/districts${query}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -427,6 +440,39 @@ export async function getAnalysisStatus(analysisId: string) {
   return res.json();
 }
 
+export const ANALYSIS_POLL_INTERVAL_MS = 2000;
+export const ANALYSIS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+
+const TERMINAL_ANALYSIS_STATUSES = ['completed', 'failed'];
+
+/**
+ * Wait until a queued analysis run finishes.
+ *
+ * Submission is asynchronous: the API returns an id straight away and runs the pipeline
+ * in the background, so callers have to wait for a terminal status before loading results.
+ * Polls the lightweight status endpoint rather than the full consolidated payload.
+ */
+export async function waitForAnalysisCompletion(
+  analysisId: string,
+  {
+    intervalMs = ANALYSIS_POLL_INTERVAL_MS,
+    timeoutMs = ANALYSIS_POLL_TIMEOUT_MS,
+  }: { intervalMs?: number; timeoutMs?: number } = {}
+): Promise<{ status: string; progress_percentage?: number }> {
+  const deadline = Date.now() + timeoutMs;
+  let latest = await getAnalysisStatus(analysisId);
+
+  while (!TERMINAL_ANALYSIS_STATUSES.includes(latest?.status)) {
+    if (Date.now() >= deadline) {
+      throw new Error('Analysis is taking longer than expected. Please refresh in a moment.');
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    latest = await getAnalysisStatus(analysisId);
+  }
+
+  return latest;
+}
+
 export async function getConsolidatedAnalysis(analysisId: string): Promise<ConsolidatedAnalysisData> {
   const res = await apiFetch(`${API_BASE_URL}/api/v1/analysis/${analysisId}/consolidated`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -451,14 +497,30 @@ export async function downloadAnalysisPdf(analysisId: string): Promise<void> {
   window.URL.revokeObjectURL(url);
 }
 
+export interface ChatSource {
+  title?: string;
+  source_title?: string;
+  url?: string;
+  source_url?: string;
+  claim?: string;
+  source_type?: string;
+  reference_id?: string;
+}
+
 export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
+  confidence?: 'high' | 'medium' | 'low' | 'unverified' | string;
+  rag_status?: string;
+  sources?: ChatSource[];
 }
 
 export interface ChatResponse {
   reply: string;
   provider_available: boolean;
+  confidence?: 'high' | 'medium' | 'low' | 'unverified' | string;
+  rag_status?: string;
+  sources?: ChatSource[];
 }
 
 export async function sendChatMessage(
@@ -599,6 +661,17 @@ export { formatKm };
 
 const FIN_BASE = `${API_BASE_URL}/api/v1/finance`;
 
+// ---- Finance Engine Calculation & Scenarios ----
+export async function calculateFinance(data: any) {
+  const res = await apiFetch(`${FIN_BASE}/calculate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to calculate finance (${res.status})`);
+  return res.json();
+}
+
 // ---- Expenses ----
 export async function getExpenses(profileId: string, category?: string) {
   const params = new URLSearchParams({ profile_id: profileId });
@@ -669,6 +742,9 @@ export async function addSavingsTransaction(goalId: string, data: any) {
   if (!res.ok) throw new Error(`Failed to add transaction (${res.status})`);
   return res.json();
 }
+
+export const getSavingsGoals = getSavings;
+export const contributeSavingsGoal = addSavingsTransaction;
 
 // ---- Budget ----
 export async function getBudgets(profileId: string) {
@@ -822,5 +898,59 @@ export async function createProfile(profileId: string | null | undefined, data: 
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to save profile (${res.status})`);
+  return res.json();
+}
+
+// ---- Voice / Sarvam AI Services ----
+const VOICE_BASE = `${API_BASE_URL}/voice`;
+
+export async function getVoiceStatus(): Promise<{ available: boolean; stt_model?: string; tts_model?: string; default_speaker?: string }> {
+  try {
+    const res = await apiFetch(`${VOICE_BASE}/status`);
+    if (!res.ok) return { available: false };
+    return res.json();
+  } catch {
+    return { available: false };
+  }
+}
+
+export async function transcribeAudio(audioBlob: Blob, languageCode: string = 'hi-IN'): Promise<{ transcript: string; language_code: string }> {
+  const formData = new FormData();
+  formData.append('file', audioBlob, 'recording.webm');
+  formData.append('language_code', languageCode);
+
+  const res = await apiFetch(`${VOICE_BASE}/stt`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Speech transcription failed' }));
+    throw new Error(err.detail || `Speech transcription failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function synthesizeSpeech(
+  text: string,
+  languageCode: string = 'hi-IN',
+  speaker?: string,
+  signal?: AbortSignal
+): Promise<{ audio_base64: string; format: string; speaker: string; language_code: string }> {
+  const res = await apiFetch(`${VOICE_BASE}/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      language_code: languageCode,
+      speaker: speaker || undefined,
+    }),
+    signal,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Speech synthesis failed' }));
+    throw new Error(err.detail || `Speech synthesis failed with status ${res.status}`);
+  }
   return res.json();
 }

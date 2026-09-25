@@ -1,6 +1,6 @@
 """Unit and integration tests for Phase 7 - Competition Analysis."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -26,7 +26,7 @@ class TestPhase7CompetitionAnalysis:
                 "business_category_id": dairy_cat_id,
                 "category": "Dairy Processing",
                 "distance_meters": 2000.0,
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "MSME Directory",
             },
             {
@@ -34,7 +34,7 @@ class TestPhase7CompetitionAnalysis:
                 "business_category_id": dairy_cat_id,
                 "category": "Dairy Farm",
                 "distance_meters": 4500.0,
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "MSME Directory",
             },
             {
@@ -139,13 +139,13 @@ class TestPhase7CompetitionAnalysis:
             {
                 "id": uuid4(),
                 "category": "Dairy",
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "Official Registry",
             },
             {
                 "id": uuid4(),
                 "category": "Dairy",
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "Official Registry",
             },
             {"id": uuid4(), "category": "Dairy", "verified_at": None, "source": "Unverified Feed"},
@@ -198,7 +198,7 @@ class TestMarketServiceCompetitionOrchestration:
                 "business_category_id": uuid4(),
                 "category": "Dairy Farm",
                 "distance_meters": 3000.0,
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "MSME Directory",
             }
         ]
@@ -243,21 +243,21 @@ class TestMarketServiceCompetitionOrchestration:
         assert exc_info.value.status_code == 404
         assert "not found" in exc_info.value.detail
 
-    def test_village_missing_coordinates_raises_400(self):
-        """When village exists in DB but has null latitude/longitude, raise 400."""
-        from fastapi import HTTPException
-
+    def test_village_missing_coordinates_resolves_fallback(self):
+        """When village exists in DB but has null latitude/longitude, fallback coordinates are resolved."""
         from app.models.location import Village
 
         mock_db = MagicMock()
         mock_village = Village(id=uuid4(), name="No Geo Vil", latitude=None, longitude=None)
         mock_db.get.return_value = mock_village
 
-        with pytest.raises(HTTPException) as exc_info:
-            MarketService.analyze_competition_for_location(db=mock_db, village_id=mock_village.id)
-
-        assert exc_info.value.status_code == 400
-        assert "missing latitude/longitude coordinates" in exc_info.value.detail
+        with patch("app.services.market_service.find_nearby_businesses") as mock_find:
+            mock_find.return_value = []
+            res = MarketService.analyze_competition_for_location(
+                db=mock_db, village_id=mock_village.id
+            )
+            assert res is not None
+            assert res.competitor_count == 0
 
     def test_lat_lng_takes_precedence_over_village_id(self):
         """User provided lat/lng takes precedence over village DB lookup."""
@@ -286,6 +286,38 @@ class TestMarketServiceCompetitionOrchestration:
                 category_id=None,
                 limit=500,
             )
+
+    def test_precomputed_competition_skips_spatial_lookup(self):
+        """Reusing an existing analyze_competition result must not re-run the spatial query."""
+        mock_db = MagicMock()
+        precomputed = analyze_competition(
+            [
+                {
+                    "id": uuid4(),
+                    "business_category_id": str(uuid4()),
+                    "category": "Dairy",
+                    "distance_meters": 3000.0,
+                }
+            ],
+            radius_km=10.0,
+            target_category_name="Dairy",
+        )
+
+        with patch("app.services.market_service.find_nearby_businesses") as mock_find:
+            res = MarketService.analyze_competition_for_location(
+                db=mock_db,
+                village_id=uuid4(),
+                radius_km=10.0,
+                category_name="Dairy",
+                precomputed_comp_res=precomputed,
+            )
+
+        mock_find.assert_not_called()
+        # No coordinates were resolved either: the village is never fetched on this path.
+        mock_db.get.assert_not_called()
+        assert res.competitor_count == 1
+        assert res.competitor_density == precomputed["competitor_density"]
+        assert res.target_category == "Dairy"
 
 
 class TestCompetitionAPIEndpoints:
