@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 
-
 _ALLOWED_LANGUAGES = {"en", "hi", "mr", "ta", "te", "kn", "gu", "bn", "pa", "ml"}
 
 
